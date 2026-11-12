@@ -1,0 +1,160 @@
+# 来源登记；采用范围必须结合 adopted_files 和 adapted_skills 阅读。
+status: partial_adaptation
+sources:
+  - id: openspec
+    repository: https://github.com/Fission-AI/OpenSpec
+    reference_checkout_commit: "56ef0ac1fd2270e88d276b40da9f23ec0f9c6e96"
+    adoption_status: not_integrated
+    adopted_version: null
+    license_review: root_license_read_dependencies_pending
+    research_snapshot_commit: "0fa4a9705c20ef1c571fe3ded74435733e4b73a1"
+    research_notes: docs/design/capability-reuse.md
+    candidate_topics:
+      - current_specs_and_change_history
+      - requirements_and_scenarios
+      - initialization_boundaries
+      - artifact_dependencies_and_task_tracking
+  - id: superpowers
+    repository: https://github.com/obra/superpowers
+    adoption_status: partially_adapted
+    adopted_version: "22f0b463e7a5e579904dd6211a520321035526f7"
+    adopted_files:
+      - skills/writing-plans/SKILL.md
+      - skills/executing-plans/SKILL.md
+      - skills/subagent-driven-development/SKILL.md
+      - skills/subagent-driven-development/implementer-prompt.md
+      - skills/subagent-driven-development/task-reviewer-prompt.md
+      - skills/subagent-driven-development/references/fix-loop.md
+      - skills/verification-before-completion/SKILL.md
+      - skills/requesting-code-review/SKILL.md
+      - skills/requesting-code-review/code-reviewer.md
+      - skills/receiving-code-review/SKILL.md
+      - skills/systematic-debugging/SKILL.md
+      - skills/systematic-debugging/root-cause-tracing.md
+      - skills/systematic-debugging/condition-based-waiting.md
+      - skills/systematic-debugging/defense-in-depth.md
+      - skills/test-driven-development/SKILL.md
+      - skills/test-driven-development/writing-good-tests.md
+      - skills/brainstorming/SKILL.md
+    adopted_scope: selected_framework_methods_only_no_upstream_scripts_or_runtime
+    adapted_skills:
+      - skills/plan-tasks/SKILL.md
+      - skills/execute-task/SKILL.md
+      - skills/review-work/SKILL.md
+      - skills/debug-issue/SKILL.md
+      - skills/test-work/SKILL.md
+      - skills/clarify-design/SKILL.md
+      - skills/release-work/SKILL.md
+      - skills/handle-incident/SKILL.md
+    license_review: selected_method_files_reviewed_other_dependencies_pending
+    research_snapshot_commit: "22f0b463e7a5e579904dd6211a520321035526f7"
+    research_notes: docs/design/capability-reuse.md
+    feedback_clarification_role: primary_adaptation_direction
+    feedback_clarification_decision: D46
+    startup_guidance_role: primary_adaptation_direction
+    startup_guidance_decision: D48
+    task_planning_role: implementation_detail_adaptation_direction
+    task_planning_decision: D55
+    task_execution_role: execution_collaboration_and_evidence_adaptation
+    task_execution_decision: D56
+    work_review_role: review_and_feedback_verification_methods
+    work_review_decision: D57
+    debugging_role: root_cause_investigation_and_authorized_fix_methods
+    debugging_decision: D59
+    testing_role: effective_tests_and_verification_methods
+    testing_decision: D60
+    clarification_design_decision: D61
+    lifecycle_decision: D64
+    candidate_topics:
+      - requirements_and_planning
+      - testing_and_debugging
+      - review_and_agent_collaboration
+      - feedback_clarification
+      - startup_guidance
+  - id: spec-kit
+    repository: https://github.com/github/spec-kit
+    adoption_status: partially_adapted
+    adopted_version: "c43849408ac0de2ca6a52f14eaae71449776057b"
+    adopted_files:
+      - templates/commands/tasks.md
+      - templates/commands/analyze.md
+      - templates/commands/clarify.md
+    adopted_scope: clarification_and_planning_methods_only_no_upstream_scripts
+    adapted_skills:
+      - skills/plan-tasks/SKILL.md
+      - skills/clarify-design/SKILL.md
+    license_review: selected_method_files_reviewed_other_dependencies_pending
+    research_snapshot_commit: "c43849408ac0de2ca6a52f14eaae71449776057b"
+    research_notes: docs/design/capability-reuse.md
+    feedback_clarification_role: selective_ambiguity_scan_adaptation
+    feedback_clarification_decision: D46
+    task_planning_role: outcome_organization_and_consistency_adaptation_direction
+    task_planning_decision: D55
+    clarification_design_decision: D61
+    candidate_topics:
+      - specification_ambiguity_clarification
+      - story_based_task_planning
+      - cross_artifact_consistency_analysis
+      - workflow_gates_and_resume
+  - id: bmad
+    repository: https://github.com/bmad-code-org/BMAD-METHOD
+    adoption_status: partially_adapted
+    adopted_version: "a867e1604b365d48ea03cbd109da1066ba0c84bc"
+    adopted_files:
+      - skills/bmad-ux/SKILL.md
+      - skills/bmad-architecture/SKILL.md
+      - skills/bmad/SKILL.md
+      - skills/bmad/references/help.md
+      - skills/bmad-party-mode/SKILL.md
+    adopted_scope: selected_navigation_architecture_ux_and_discussion_methods_no_runtime_or_templates
+    adapted_skills:
+      - skills/clarify-design/SKILL.md
+      - skills/workflow-guide/SKILL.md
+      - skills/build-foundation/SKILL.md
+      - skills/discuss-design/SKILL.md
+    license_review: selected_method_files_root_license_contributors_and_trademark_read_other_dependencies_pending
+    clarification_design_decision: D61
+    lifecycle_decision: D64
+    research_snapshot_commit: "a867e1604b365d48ea03cbd109da1066ba0c84bc"
+    research_notes: docs/design/capability-reuse.md
+    research_line: v7_preview_alpha
+    candidate_topics:
+      - product_and_ux
+      - architecture
+      - party_mode
+  - id: mattpocock-skills
+    repository: https://github.com/mattpocock/skills
+    adoption_status: partially_adapted
+    adopted_version: "4ae2317ddb22b046e26455e4f9c9b3aaaf62212d"
+    adopted_files:
+      - skills/productivity/grilling/SKILL.md
+    inspected_entry_and_docs:
+      - skills/productivity/grill-me/SKILL.md
+      - docs/productivity/grill-me.md
+    adopted_scope: decision_dependency_questioning_only_no_upstream_call_chain
+    adapted_skills:
+      - skills/clarify-design/SKILL.md
+    license_review: selected_method_and_root_license_read_other_skills_excluded
+    research_snapshot_commit: "4ae2317ddb22b046e26455e4f9c9b3aaaf62212d"
+    research_notes: docs/design/capability-reuse.md
+    clarification_design_decision: D61
+  - id: gsd-core
+    repository: https://github.com/open-gsd/gsd-core
+    adoption_status: partially_adapted
+    adopted_version: "fa03ab369b34c4b5f734f48d4985d091f21795ad"
+    adopted_files:
+      - gsd-core/workflows/resume-project.md
+      - gsd-core/workflows/verify-work.md
+      - docs/how-to/verify-and-ship.md
+    adopted_scope: selected_resume_observable_acceptance_and_evidence_freshness_methods_only
+    adapted_skills:
+      - skills/workflow-guide/SKILL.md
+      - skills/execute-task/SKILL.md
+      - skills/release-work/SKILL.md
+    lifecycle_decision: D64
+    license_review: complete_root_license_and_selected_method_sections_read_other_call_chains_excluded
+    research_snapshot_commit: "fa03ab369b34c4b5f734f48d4985d091f21795ad"
+    research_notes: docs/design/capability-reuse.md
+    candidate_topics:
+      - user_acceptance_guidance
+      - context_handoff_and_resume

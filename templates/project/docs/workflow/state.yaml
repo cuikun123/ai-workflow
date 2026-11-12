@@ -1,0 +1,7 @@
+# 候选起始状态模板；字段与正式 schema 尚待确认。
+# 这是业务项目模板，不是框架仓库本身的当前状态。
+current_iteration: 000-foundation
+stage: not_started
+confirmations: []
+next_task: null
+blockers: []

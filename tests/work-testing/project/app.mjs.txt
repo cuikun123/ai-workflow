@@ -1,0 +1,28 @@
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { openStore } from './store.mjs';
+import { validateUrl } from './validate.mjs';
+
+export async function startApp({ dbPath = ':memory:' } = {}) {
+  const store = openStore(dbPath);
+  const html = readFileSync(new URL('../public/index.html', import.meta.url));
+  const server = createServer(async (req, res) => {
+    const json = (status, body) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
+    if (req.method === 'GET' && req.url === '/') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(html); return; }
+    if (req.method === 'GET' && req.url === '/api/bookmarks') { json(200, store.list()); return; }
+    if (req.method === 'POST' && req.url === '/api/bookmarks') {
+      let body = ''; for await (const chunk of req) body += chunk;
+      let data; try { data = JSON.parse(body); } catch { json(400, { error: 'INVALID_JSON' }); return; }
+      try { const url = validateUrl(data?.url); json(201, store.add(url)); }
+      catch (error) { json(error.message === 'INVALID_URL' ? 400 : 500, { error: error.message }); }
+      return;
+    }
+    json(404, { error: 'NOT_FOUND' });
+  });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  let closed = false;
+  return {
+    baseURL: `http://127.0.0.1:${server.address().port}`,
+    async close() { if (closed) return; closed = true; server.closeIdleConnections(); await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())); store.close(); },
+  };
+}

@@ -1,0 +1,5 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { validateUrl } from '../src/validate.mjs';
+test('normalizes an HTTPS URL', () => assert.equal(validateUrl(' https://example.test '), 'https://example.test/'));
+test('rejects blank input', () => assert.throws(() => validateUrl('  '), /^Error: INVALID_URL$/));

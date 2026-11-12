@@ -1,0 +1,5 @@
+export function validateUrl(raw) {
+  if (typeof raw !== 'string' || !raw.trim()) throw new Error('INVALID_URL');
+  try { return new URL(raw.trim()).href; }
+  catch { throw new Error('INVALID_URL'); }
+}

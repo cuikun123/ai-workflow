@@ -1,0 +1,26 @@
+{
+    "status":  "draft-scaffold",
+    "project_root":  "project",
+    "empty_files":  [
+                        "docs/project/overview.md",
+                        "docs/project/backlog.md",
+                        "docs/project/foundation/README.md",
+                        "docs/project/foundation/engineering.md",
+                        "docs/project/foundation/experience.md",
+                        "docs/project/foundation/security.md",
+                        "docs/project/foundation/quality.md",
+                        "docs/project/foundation/operations.md",
+                        "docs/project/specs/README.md",
+                        "docs/iterations/000-foundation/scope.md",
+                        "docs/iterations/000-foundation/design.md",
+                        "docs/iterations/000-foundation/tasks.md",
+                        "docs/iterations/000-foundation/verification.md"
+                    ],
+    "seed_files":  [
+                       "AGENTS.md",
+                       "docs/workflow/state.yaml"
+                   ],
+    "directory_placeholders":  [
+                                   "docs/releases/.gitkeep"
+                               ]
+}

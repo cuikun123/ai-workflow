@@ -1,0 +1,11 @@
+import { DatabaseSync } from 'node:sqlite';
+
+export function openStore(file) {
+  const db = new DatabaseSync(file);
+  db.exec('CREATE TABLE IF NOT EXISTS bookmarks (id INTEGER PRIMARY KEY, url TEXT NOT NULL)');
+  return {
+    add(url) { const result = db.prepare('INSERT INTO bookmarks(url) VALUES (?)').run(url); return { id: Number(result.lastInsertRowid), url }; },
+    list() { return db.prepare('SELECT id,url FROM bookmarks ORDER BY id').all().map(row => ({ id: row.id, url: row.url })); },
+    close() { db.close(); },
+  };
+}

@@ -1,0 +1,65 @@
+// Fixture-only Chromium CDP helper. Uses an installed browser and a separate temporary profile.
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
+
+export async function browserPage(url) {
+  const parsed = new URL(url);
+  if (parsed.hostname !== '127.0.0.1') throw new Error('Only fixture loopback URLs are allowed');
+  const executable = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe'].find(existsSync);
+  if (!executable) throw new Error('BROWSER_UNAVAILABLE');
+  const profile = mkdtempSync(join(tmpdir(), 'ai-workflow-browser-'));
+  const child = spawn(executable, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-sync', '--disable-component-update', '--disable-extensions', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { windowsHide: true, stdio: 'ignore' });
+  let socket, next = 0, ended = false;
+  let launchError;
+  child.on('error', error => { launchError = error; });
+  child.on('exit', () => { ended = true; });
+  const pending = new Map();
+  const waitUntil = async (fn, label, timeout = 10000) => {
+    const until = Date.now() + timeout;
+    while (Date.now() < until) { if (launchError) throw launchError; if (await fn()) return; await delay(25); }
+    throw new Error(`Timed out: ${label}`);
+  };
+  const send = (method, params = {}) => new Promise((resolve, reject) => {
+    const id = ++next;
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}`)); }, 10000);
+    pending.set(id, { resolve, reject, timer });
+    socket.send(JSON.stringify({ id, method, params }));
+  });
+  const close = async () => {
+    if (socket?.readyState === WebSocket.OPEN) { try { await send('Browser.close'); } catch {} socket.close(); }
+    for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(new Error('Browser closed')); } pending.clear();
+    if (!ended) { try { await waitUntil(() => ended, 'browser exit', 3000); } catch { child.kill(); } }
+  };
+  try {
+    const portFile = join(profile, 'DevToolsActivePort');
+    await waitUntil(() => existsSync(portFile) && readFileSync(portFile, 'utf8').trim().length > 0, 'debug endpoint');
+    const port = Number(readFileSync(portFile, 'utf8').split(/\r?\n/)[0]);
+    const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json();
+    socket = new WebSocket(target.webSocketDebuggerUrl);
+    await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });
+    socket.addEventListener('message', ({ data }) => {
+      const message = JSON.parse(data); const entry = pending.get(message.id); if (!entry) return;
+      pending.delete(message.id); clearTimeout(entry.timer); if (message.error) entry.reject(new Error(message.error.message)); else entry.resolve(message.result);
+    });
+    socket.addEventListener('close', () => { for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(new Error('CDP connection closed')); } pending.clear(); });
+    const evaluate = async expression => {
+      const result = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+      if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
+      return result.result.value;
+    };
+    await send('Page.enable');
+    const navigation = await send('Page.navigate', { url: parsed.href });
+    if (navigation.errorText) throw new Error(navigation.errorText);
+    await waitUntil(() => evaluate(`location.href === ${JSON.stringify(parsed.href)} && document.readyState === "complete"`), 'page loaded');
+    const reload = () => new Promise((resolve, reject) => {
+      const finish = error => { clearTimeout(timer); socket.removeEventListener('message', onMessage); error ? reject(error) : resolve(); };
+      const onMessage = ({data}) => { if (JSON.parse(data).method === 'Page.loadEventFired') finish(); };
+      const timer = setTimeout(() => finish(new Error('Page reload timed out')), 10000);
+      socket.addEventListener('message', onMessage); send('Page.reload').catch(finish);
+    });
+    return { evaluate, async waitFor(expression) { await waitUntil(() => evaluate(expression), expression); }, reload, close };
+  } catch (error) { await close(); throw error; }
+}
