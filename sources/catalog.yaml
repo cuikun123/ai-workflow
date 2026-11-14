@@ -158,3 +158,123 @@ sources:
     candidate_topics:
       - user_acceptance_guidance
       - context_handoff_and_resume
+
+# 第0步审核事实保留；第1步采用另见step1_adoption。
+runtime_dependency_review:
+  status: fixed_archives_reviewed_not_integrated
+  date: "2026-11-13"
+  target: windows_x64_node_24
+  evidence_id: step0-20261113-ece1fbfa
+  verification_reference: tests/README.md#第0步客户端与依赖核验
+  archive_integrity: sha512_sri_matched_for_all_8_selected_packages
+  registry_advisories: zero_matches_at_query_time_not_security_guarantee
+  runtime_library_probes: 7_passed_no_framework_state_runtime
+  install_scripts_executed: false
+  build_binary_executed: false
+  step1_adoption:
+    decision: D112
+    naming_and_license_decision: D113
+    package_name: iterlane
+    package_version: "0.3.0-dev.0"
+    framework_license: MIT
+    framework_copyright: TY
+    date: "2026-11-13"
+    status: integrated_internal_development_package
+    package_lock: package-lock.json
+    runtime_dependencies: [yaml, ajv, fast-uri, fast-deep-equal, json-schema-traverse, require-from-string]
+    build_dependency: esbuild
+    installed_platform_binary: "@esbuild/win32-x64@0.28.2"
+    install: npm_ci_ignore_scripts
+    install_scripts_executed: false
+    build_binary_executed: true
+    binary_in_distribution: false
+    distribution_notices: THIRD_PARTY_NOTICES.md
+    distribution_dependency_inventory: dependency-manifest.json
+    verification_reference: tests/README.md#第1步工程资源包与校验基础
+  other_platform_optional_packages: not_reviewed
+  step2_adoption:
+    decision: D114
+    package_name: iterlane
+    package_version: "0.3.0-dev.1"
+    status: internal_project_installation_tools
+    new_runtime_dependencies: []
+    install_scripts_executed: false
+    build_binary_executed: true
+    verification_reference: tests/README.md#第2步安装初始化与有限恢复
+  step3_adoption:
+    decision: D116
+    package_name: iterlane
+    package_version: "0.3.0-dev.2"
+    workflow_guide_version: "0.2.1"
+    client_version: "0.169.0"
+    request_model: gpt-6.1-sol
+    reasoning: medium
+    status: native_project_skills_under_validation
+    new_runtime_dependencies: []
+    global_configuration_changed: false
+    upstream_model_identity: not_independently_verified
+    verification_reference: tests/README.md#第3步客户端接入与第23步联合校验
+  excluded_latest:
+    name: fast-uri
+    version: "4.2.3"
+    reason: outside_ajv_caret_3_0_1_dependency_range
+  packages:
+    - name: yaml
+      version: "2.9.1"
+      registry: https://registry.npmjs.org/yaml/2.9.1
+      license: ISC
+      role: proposed_runtime
+      tarball_sha256: "4ef6c54cf559b8a207b7b518378230805a1c84af239b14960e8c67c7d59de5d3"
+      dependencies: []
+    - name: ajv
+      version: "8.20.0"
+      registry: https://registry.npmjs.org/ajv/8.20.0
+      license: MIT
+      role: proposed_runtime
+      tarball_sha256: "b2f0b3a893bbb8cc5efb6814f08b1499e19e31d5dd73683f5893382f48f6e7b3"
+      dependencies: [fast-uri, fast-deep-equal, json-schema-traverse, require-from-string]
+    - name: fast-uri
+      version: "3.1.9"
+      registry: https://registry.npmjs.org/fast-uri/3.1.9
+      license: BSD-3-Clause
+      role: proposed_runtime_transitive
+      tarball_sha256: "4f5a67f7b61110aae7b3ad38e806627f5712f4c150bd38eb804a562e69a9ee5e"
+      dependencies: []
+    - name: fast-deep-equal
+      version: "3.1.3"
+      registry: https://registry.npmjs.org/fast-deep-equal/3.1.3
+      license: MIT
+      role: proposed_runtime_transitive
+      tarball_sha256: "b019a0980f27638dc3f85836b0e478f188e00d7a6e5852c0819fa86f56e47b8f"
+      dependencies: []
+    - name: json-schema-traverse
+      version: "1.0.0"
+      registry: https://registry.npmjs.org/json-schema-traverse/1.0.0
+      license: MIT
+      role: proposed_runtime_transitive
+      tarball_sha256: "023222622df29fc274bde5d3590e47aa1d4a8e3c1d6e2aba029948ed79799b21"
+      dependencies: []
+    - name: require-from-string
+      version: "2.0.2"
+      registry: https://registry.npmjs.org/require-from-string/2.0.2
+      license: MIT
+      role: proposed_runtime_transitive
+      tarball_sha256: "cb694a4965908f7775a0c757f00cf4e624d193cd71d77988fbcca0f597b88d82"
+      dependencies: []
+    - name: esbuild
+      version: "0.28.2"
+      registry: https://registry.npmjs.org/esbuild/0.28.2
+      license: MIT
+      role: proposed_build_only
+      tarball_sha256: "e045f94c235c7adc50e77ba2a579c7bec41b496b6b47c3a7845f7c1e19959a88"
+      install_hook: postinstall_node_install_js_reviewed_not_executed
+      selected_optional_dependency: "@esbuild/win32-x64"
+    - name: "@esbuild/win32-x64"
+      version: "0.28.2"
+      registry: https://registry.npmjs.org/@esbuild%2fwin32-x64/0.28.2
+      license: MIT
+      role: proposed_build_platform_binary
+      tarball_sha256: "7286c3611b6f1f4c4d9ec90adcbc478407ff0d28ead96567f361d53e67613e19"
+      binary_sha256: "c7bee37877d0aa6a046e52783fa0a2cf1a9ce5579d68bb3083bda99d4bff18ef"
+      binary_hash_matches_parent_manifest: true
+      license_text: esbuild_0_28_2_LICENSE_md_required_when_redistributing_binary

@@ -1,7 +1,14 @@
-# 候选起始状态模板；字段与正式 schema 尚待确认。
-# 这是业务项目模板，不是框架仓库本身的当前状态。
-current_iteration: 000-foundation
-stage: not_started
-confirmations: []
-next_task: null
-blockers: []
+# state v1结构示例，不是本框架仓库或真实业务项目的当前状态。
+# 初始化器生成实际UTC时间和已写入文件的basis，不直接复制本例时间。
+schema_version: 1
+revision: 0
+current_iteration: docs/iterations/000-foundation
+current_task: null
+phase: clarify
+status: not_started
+waiting_for: null
+checkpoint_ref: null
+confirmation_refs: []
+blocker_refs: []
+basis: []
+updated_at: '1970-01-01T00:00:00Z'

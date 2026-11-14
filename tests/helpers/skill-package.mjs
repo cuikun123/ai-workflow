@@ -1,17 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync, cpSync, mkdtempSync, readdirSync } from 'node:fs';
+import { readFileSync, existsSync, cpSync, mkdtempSync, readdirSync, lstatSync } from 'node:fs';
 import { resolve, dirname, join, relative } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 
+export function assertSkillPackageStructure(root) {
+  const stat = lstatSync(root);
+  assert.ok(stat.isDirectory() && !stat.isSymbolicLink(), 'Skill root must be a real directory');
+  for (const name of ['SKILL.md', 'NOTICE.md']) {
+    const entry = lstatSync(join(root, name));
+    assert.ok(entry.isFile() && !entry.isSymbolicLink(), 'Required skill resource must be a regular file: ' + name);
+  }
+  function visit(folder) {
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      assert.ok(!entry.isSymbolicLink(), 'Skill resources must not contain symbolic links');
+      if (entry.isDirectory()) visit(join(folder, entry.name));
+      else assert.ok(entry.isFile(), 'Skill resources must be regular files or directories');
+    }
+  }
+  visit(root);
+}
+
 export function registerSkillPackageTests(source, skillName, licenseDigests) {
 source = resolve(source);
 
-test(`${skillName}: discovery metadata and uniform two-file package`, () => {
-  const entries = readdirSync(source, { withFileTypes: true });
-  assert.deepEqual(entries.map(entry => entry.name).sort(), ['NOTICE.md', 'SKILL.md']);
-  assert.ok(entries.every(entry => entry.isFile() && !entry.isSymbolicLink()), 'Package contains regular files only');
+test(`${skillName}: discovery metadata and complete resource package`, () => {
+  assertSkillPackageStructure(source);
   const markdown = readFileSync(join(source, 'SKILL.md'), 'utf8');
   const frontmatter = markdown.match(/^---\r?\n([\s\S]+?)\r?\n---\r?\n/);
   assert.ok(frontmatter, 'Missing closed YAML frontmatter');

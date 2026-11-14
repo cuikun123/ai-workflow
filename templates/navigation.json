@@ -1,0 +1,14 @@
+[
+  "<!-- ai-workflow:begin -->",
+  "# Iterlane 项目协作导航",
+  "",
+  "固定框架版本：{{framework_version}}。完整技能位于 .agents/skills/，公共资源位于 .ai-workflow/。",
+  "仅对本项目工作流相关的开始、继续、状态或专项请求使用框架入口；无关问题不启动项目流程。先读workflow-guide或明确指定的专项完整说明，不为推荐候选加载整组技能。",
+  "工作流只读核对先执行项目内check，资源缺失或改变时只报告，不推进工作。Windows PowerShell优先用Node按UTF-8读取并输出JSON；脚本可用单引号here-string管道传给Node，避免嵌套引号损坏。受限只读会话不要设置Console/OutputEncoding；仅实际乱码时将当前必需文件转为ASCII转义JSON重读一次。",
+  "先读 docs/workflow/state.yaml，再核对 docs/project/overview.md 和当前迭代的 scope/design/tasks/verification；不按最大编号选择迭代。",
+  "state 是书签，不能单独证明授权、检查或用户验收。普通空文档表示尚未填写，不等于任务完成。",
+  "只读安装检查：node .ai-workflow/bin/iterlane.mjs check --json。",
+  "状态格式检查：node .ai-workflow/bin/iterlane.mjs validate --state docs/workflow/state.yaml --json。",
+  "安装不代表客户端接入或业务验收；关键范围、Git 与部署操作仍须核对项目已有授权。",
+  "<!-- ai-workflow:end -->"
+]

@@ -1,24 +1,24 @@
 # 框架设计资料索引
 
-此目录属于框架自身；业务项目文档模板位于 `../templates/project/`。
+本目录属于框架自身；业务项目模板见 [templates/project](../templates/project/)。
 
 ## 先读
 
-- [交接与下一步](handoff.md)
-- [决策状态](decisions.md)：区分确认、方向、草案与待定事项。
-- [后续路线](roadmap.md)
+1. [开发流程](design/workflow.md)：项目怎么推进，开发者什么时候参与。
+2. [当前交接](handoff.md)：实际状态、未完成事项与下一步。
+3. [决策记录](decisions.md)：确认依据、方向、草案与待定事项。
 
-## 按主题阅读
+## 按问题查阅
 
-- [目标与边界](design/vision.md)
-- [项目生命周期与确认机制](design/workflow.md)
-- [业务文档结构与空文件策略](design/documents.md)
-- [业务规格格式](design/spec-format.md)
-- [框架接入与运行](design/integration.md)
-- [多 Agent 协作](design/multi-agent.md)
-- [开源能力吸收与适配](design/capability-reuse.md)
-- [文档版本与 Git 工作流](design/git-workflow.md)
+| 问题 | 文档 |
+| --- | --- |
+| 框架做什么、不做什么 | [目标与范围](design/vision.md) |
+| 文档放哪里、什么时候更新 | [文档管理](design/documents.md) |
+| 业务行为怎样描述 | [规格格式](design/spec-format.md) |
+| 怎样保存、验收、合入和清理 | [Git 工作流](design/git-workflow.md) |
+| 如何安装、验证接入和升级 | [接入设计](design/integration.md) |
+| 如何分工与独立审查 | [多 Agent 协作](design/multi-agent.md) |
+| 上游方法怎样采用 | [能力适配](design/capability-reuse.md) |
+| 后续推进哪些方向 | [开发路线](roadmap.md) |
 
-## 使用规则
-
-设计文档记录约定或草案；运行能力以实际代码、实际安装和验证证据为准。继续讨论时直接更新对应主题，避免创建平行说明。
+设计确认、源码实现、运行验证与用户验收分别判断。继续讨论时更新对应主题，不另建平行说明。

@@ -1,18 +1,22 @@
 # 来源与适配记录
 
-[catalog.yaml](catalog.yaml) 保存来源、采用范围及核对状态。[plan-tasks](../skills/plan-tasks/SKILL.md) 适配了 Superpowers writing-plans、Spec Kit tasks 和 analyze；[execute-task](../skills/execute-task/SKILL.md) 适配 Superpowers 执行、协作与完成前证据核对方法；[review-work](../skills/review-work/SKILL.md) 适配 Superpowers 审查与反馈核验方法。具体原文摘要、改造和排除项、运行依赖与许可分别见 [计划来源](../skills/plan-tasks/NOTICE.md)、[执行来源](../skills/execute-task/NOTICE.md) 和 [审查来源](../skills/review-work/NOTICE.md)。这不表示整个上游项目或其他候选能力已集成。
+| 查什么 | 去哪里 |
+| --- | --- |
+| 上游候选、采用范围和核对状态 | [catalog.yaml](catalog.yaml) |
+| 每项 Skill 的职责与版本 | [能力索引](../skills/README.md) |
+| 固定文件、摘要、改造、依赖与完整许可 | 各 Skill 的 `NOTICE.md` |
+| 方法怎样适配本框架 | [能力适配设计](../docs/design/capability-reuse.md) |
 
-D64 五项新增及原六项协调增强的来源见 [技能索引](../skills/README.md) 与各 NOTICE。BMAD 提供选定导航、架构/体验和讨论方法；GSD Core 提供选定恢复、可观察验收和证据适用性方法；Superpowers 提供已核对的执行、检查和调查方法。部署回退与线上前置来自本框架 D42/D44，不冒称上游部署器。全部是方法级适配，未整包引入运行时。
+全部是选定方法的适配，不表示整个上游运行时已集成。部署回退和线上调查前置来自本框架规则，不冒称上游部署能力。
 
-引入任何能力前，应记录：
+第1步另采用锁定版本的yaml、Ajv及4项传递运行依赖，esbuild仅作构建。版本、SRI和许可证见`package-lock.json`、catalog的`step1_adoption`及构建包的`dependency-manifest.json`/`THIRD_PARTY_NOTICES.md`；本轮以`--ignore-scripts`安装，实际执行了已核对的Windows esbuild二进制。
 
-- 仓库与具体文件、固定上游版本或 commit。
-- 许可证、署名和再分发要求的核对结果。
-- 使用方式：直接复用、适配复用、自行设计。
-- 输入输出、依赖、关联脚本、副作用和文档写入位置。
-- 改动与原因、确认或状态机制的调整。
-- 验证场景、执行结果和未解决问题。
+引入前记录：
 
-OpenSpec 的本地参考 commit 只表示查看的参考版本，不是已经采用或适配的版本。未知许可或版本使用空值，不能推测填入。
+- 仓库、具体文件和固定版本。
+- 许可证、署名与再分发要求。
+- 直接复用、适配或自行设计的范围与理由。
+- 输入输出、依赖、脚本、副作用和写入位置。
+- 确认或状态机制的改造、验证结果与未解决问题。
 
-上游有变化时显式评估和验证，不自动覆盖已适配内容。
+OpenSpec 本地参考提交只表示阅读快照，不表示采用。未知许可或版本留空，不推测填写；上游变化先显式评估和验证，不自动覆盖。

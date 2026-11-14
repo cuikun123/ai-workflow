@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai-workflow:state:1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "revision", "current_iteration", "current_task", "phase", "status", "waiting_for", "checkpoint_ref", "confirmation_refs", "blocker_refs", "basis", "updated_at"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "revision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "current_iteration": { "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
+    "current_task": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+    "phase": { "enum": [null, "clarify", "plan", "build", "execute", "verify", "accept", "closeout", "release", "maintenance"] },
+    "status": { "enum": ["not_started", "ready", "running", "awaiting_user", "blocked", "paused", "completed"] },
+    "waiting_for": { "enum": [null, "scope_confirmation", "plan_confirmation", "task_acceptance", "operation_authorization", "retry_decision"] },
+    "checkpoint_ref": { "anyOf": [{ "$ref": "#/$defs/ref" }, { "type": "null" }] },
+    "confirmation_refs": { "type": "array", "items": { "$ref": "#/$defs/ref" }, "uniqueItems": true },
+    "blocker_refs": { "type": "array", "items": { "$ref": "#/$defs/ref" }, "uniqueItems": true },
+    "basis": { "type": "array", "uniqueItems": true, "items": { "type": "object", "additionalProperties": false, "required": ["path", "sha256"], "properties": { "path": { "type": "string", "minLength": 1 }, "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" } } } },
+    "updated_at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{3})?Z$" }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$" },
+    "ref": { "type": "object", "additionalProperties": false, "required": ["path", "record_id"], "properties": { "path": { "type": "string", "minLength": 1 }, "record_id": { "$ref": "#/$defs/id" } } }
+  },
+  "allOf": [
+    { "if": { "properties": { "status": { "const": "awaiting_user" } } }, "then": { "properties": { "waiting_for": { "type": "string" } } }, "else": { "properties": { "waiting_for": { "type": "null" } } } },
+    { "if": { "properties": { "status": { "const": "blocked" } } }, "then": { "properties": { "blocker_refs": { "minItems": 1 } } } },
+    { "if": { "properties": { "status": { "const": "paused" } } }, "then": { "properties": { "checkpoint_ref": { "type": "object" } } } },
+    { "if": { "properties": { "current_iteration": { "type": "null" } } }, "then": { "properties": { "current_task": { "type": "null" }, "phase": { "type": "null" }, "status": { "not": { "const": "running" } } } }, "else": { "properties": { "phase": { "type": "string" } } } },
+    { "if": { "properties": { "phase": { "enum": ["execute", "verify", "accept", "closeout"] } } }, "then": { "properties": { "current_task": { "type": "string" } } } },
+    { "if": { "properties": { "waiting_for": { "const": "task_acceptance" } } }, "then": { "properties": { "phase": { "const": "accept" }, "current_task": { "type": "string" } } } },
+    { "if": { "properties": { "phase": { "const": "accept" }, "status": { "const": "awaiting_user" } } }, "then": { "properties": { "waiting_for": { "const": "task_acceptance" } } } },
+    { "if": { "properties": { "phase": { "const": "closeout" } } }, "then": { "properties": { "confirmation_refs": { "minItems": 1 } } } }
+  ]
+}

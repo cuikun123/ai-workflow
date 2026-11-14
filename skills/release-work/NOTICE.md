@@ -1,5 +1,7 @@
 # 来源与适配声明
 
+0.2.0按本框架Git决定接入固定发布标签、远端核验、部署触发权限及线上补丁顺序；由主Agent使用已有Git/平台/部署工具，条件缺失如实报告。本地适配无新增上游来源、脚本或自动安装依赖；以下0.1.0边界保留历史含义。
+
 本包为 ai-workflow 的方法级改写，不调用原版流程，不代表上游背书；本声明不为整个框架选择许可证。
 
 GSD verify-and-ship 仅采用 Why a passing verification can turn stale 的证据对当前内容适用性检查；该文 ship 是 PR 流程，不提供本包部署回退能力。Superpowers 仅采用 verification-before-completion 的实际命令、退出结果与证据判断。部署、失败回退、数据核验及重试等待来自框架 D42/D43；不采用 GSD 自动 UAT、状态归档、PR、hooks 或其他调用链。
