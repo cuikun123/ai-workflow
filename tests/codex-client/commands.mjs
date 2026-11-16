@@ -46,7 +46,17 @@ function javascript(source,args=[],stateReferences=[],managedPaths=[]){
   for(const m of code.matchAll(/for\s*\(\s*(?:const|let|var)\s+([\w$]+)\s+of\s+([\w$]+)\s*\)/g))if(arrays.has(m[2]))bindings.set(m[1],arrays.get(m[2]));
   for(const m of code.matchAll(/([\w$]+)\.map\(\s*\(?\s*([\w$]+)\s*\)?\s*=>/g))if(arrays.has(m[1]))bindings.set(m[2],arrays.get(m[1]));
   for(const m of code.matchAll(/for\s*\(\s*(?:const|let|var)\s+([\w$]+)\s+of\s+process\.argv\.slice\(1\)/g))bindings.set(m[1],args);
-  for(const m of source.matchAll(/(?:const|let|var)\s+([\w$]+)\s*=\s*(['"])[^\n]*?\2\s*[;,]/g))if(actual(m)){const value=literal(m[0].replace(/^[\s\S]*?=/,'').replace(/[;,]$/,''));if(value!==null)bindings.set(m[1],[value]);}
+  const ambiguousBindings=new Set();
+  for(const m of source.matchAll(/(?:const|let|var)\s+([\w$]+)\s*=\s*(['"])[^\n]*?\2\s*[;,]/g))if(actual(m)){const value=literal(m[0].replace(/^[\s\S]*?=/,'').replace(/[;,]$/,''));if(value!==null){if(bindings.has(m[1])&&bindings.get(m[1]).some(v=>v!==value))ambiguousBindings.add(m[1]);bindings.set(m[1],[value]);}}
+  // The frozen project snapshot rejects links. A finite immutable realpath
+  // alias identifies the same declared read target, never an unknown path.
+  for(const m of code.matchAll(/\bconst\s+([A-Za-z_]\w*)\s*=\s*([A-Za-z_]\w*)\.realpathSync\(\s*([A-Za-z_]\w*)\s*\)\s*;/g)){
+    const values=bindings.get(m[3]),tail=code.slice(m.index+m[0].length);
+    const mutation=name=>new RegExp('\\b'+name+'\\s*(?:=(?!=)|[+*/%&|^?-]{1,3}=|\\+\\+|--)');
+    const immutableInput=new RegExp('\\bconst\\s+'+m[3]+'\\s*=|for\\s*\\(\\s*const\\s+'+m[3]+'\\s+of').test(code.slice(0,m.index));
+    const inputDecl=code.match(new RegExp('\\bconst\\s+'+m[3]+'\\s*=')),inputTail=inputDecl?code.slice(inputDecl.index+inputDecl[0].length):code;
+    if(aliases.has(m[2])&&values&&immutableInput&&!mutation(m[1]).test(tail)&&!mutation(m[3]).test(inputTail)&&!new RegExp('\\b'+m[2]+'\\.realpathSync\\s*=').test(code))bindings.set(m[1],values);
+  }
   for(const m of code.matchAll(/\bconst\s+([\w$]+)\s*=\s*([\w$]+)\s*\+\s*([\w$]+)\s*;/g)){
     // This bounded recognizer accepts plain ASCII identifiers only; do not
     // interpolate dollar-prefixed identifiers into mutation regular expressions.
@@ -66,7 +76,7 @@ function javascript(source,args=[],stateReferences=[],managedPaths=[]){
   const earlyGuards=[...code.matchAll(/if\s*\(\s*!\s*([\w$]+)\.existsSync\(\s*([\w$]+(?:\.path)?)\s*\)\s*\)\s*(?:return\s*\{\s*(?:(?:path|file)\s*:\s*[\w$]+|(?:path|file)|[\w$]+)\s*,\s*exists\s*:\s*false\s*\}\s*;|\{\s*[\w$]+\.push\(\s*\2\s*\)\s*;\s*continue\s*;?\s*\})/g)];
   for(const guard of earlyGuards){const stack=[];for(let i=0;i<guard.index;i++){if(code[i]==='{')stack.push(i);else if(code[i]==='}')stack.pop();}let end=stack.at(-1)??0,level=1;if(stack.length){end++;while(end<code.length&&level){if(code[end]==='{')level++;else if(code[end]==='}')level--;end++;}}else end=code.length;guard.scopeEnd=end;}
   let straightCode=code;for(const guard of earlyGuards)straightCode=straightCode.slice(0,guard.index)+guard[0].replace(/[^\n]/g,' ')+straightCode.slice(guard.index+guard[0].length);
-  let invalid=/\bfunction\b/.test(straightCode),read=false;
+  let invalid=/\bfunction\b/.test(straightCode)||ambiguousBindings.size>0,read=false;
   for(const m of code.matchAll(/(?:([\w$]+)\s*\.\s*(readFileSync|readFile)|require\(\s*\)\s*\.\s*(readFileSync))\s*\(/g)){
     if(m[1]&&!aliases.has(m[1])){invalid=true;continue;}
     if(!m[1]&&!/^require\(\s*(['"])(?:node:)?fs\1\s*\)/.test(source.slice(m.index))){invalid=true;continue;}
@@ -110,7 +120,7 @@ function javascript(source,args=[],stateReferences=[],managedPaths=[]){
     }
     else invalid=true;
   }
-  if([...aliases].some(alias=>new RegExp('\\b'+alias+'\\.(?:readFileSync|readFile|existsSync)\\s*=').test(code)))invalid=true;
+  if([...aliases].some(alias=>new RegExp('\\b'+alias+'\\.(?:readFileSync|readFile|existsSync|realpathSync)\\s*=').test(code)))invalid=true;
   const external=strings.map(s=>literal(source.slice(s.start,s.end))).filter(v=>typeof v==='string'&&/^(?:[a-z]:[\\/]|\.\.[\\/]|\.codex[\\/])/i.test(v));
   return {read,targets,hashOnlyTargets,invalid,external};
 }

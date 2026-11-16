@@ -1,0 +1,5 @@
+// Offline re-evaluation never changes raw events or reruns a model request.
+import fs from 'node:fs';import path from 'node:path';import {createCases} from './cases.mjs';import {evaluateEndToEnd} from './evaluate.mjs';
+import {reconstructRun} from './transcript.mjs';
+const args=process.argv.slice(2);if(args.length!==6||args[0]!=='--out'||args[2]!=='--package'||args[4]!=='--source')throw Error('Usage: reevaluate.mjs --out <new directory> --package <fixed package> --source <original client suite>');
+const out=path.resolve(args[1]),root=path.resolve(args[3]),source=path.resolve(args[5]);fs.mkdirSync(out);const results=createCases(root).map(s=>{try{return evaluateEndToEnd(s,reconstructRun(path.join(source,s.id)));}catch(error){return {id:s.id,ok:false,failures:['original_evidence_invalid:'+error.message]};}});fs.writeFileSync(path.join(out,'results.json'),JSON.stringify(results,null,2));console.log(JSON.stringify({runs:results.length,passed:results.filter(r=>r.ok).length,failed:results.filter(r=>!r.ok).map(r=>({id:r.id,failures:r.failures})),model_requests:0}));if(results.some(r=>!r.ok))process.exitCode=1;

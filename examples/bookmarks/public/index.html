@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>收藏夹</title>
+  <style>
+    body { margin: 0; background: #f5f6f8; color: #202631; font-family: system-ui, sans-serif; }
+    main { max-width: 640px; margin: 40px auto; padding: 24px; background: white; border-radius: 12px; }
+    h1 { margin-top: 0; }
+    form { display: grid; gap: 10px; }
+    input, button { padding: 10px; font: inherit; border: 1px solid #929baa; border-radius: 6px; }
+    button { background: #2458ba; color: white; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    #status { min-height: 1.5em; }
+    ul { padding-left: 24px; }
+    li { margin: 16px 0; overflow-wrap: anywhere; }
+    a { color: #2458ba; }
+    li span { display: block; margin-top: 4px; color: #555f6d; font-size: .9em; }
+    @media (max-width: 700px) { main { margin: 16px; padding: 20px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>收藏夹</h1>
+    <form id="bookmark-form">
+      <label for="title">标题</label>
+      <input id="title" name="title" type="text" required>
+      <label for="url">网址</label>
+      <input id="url" name="url" type="url" placeholder="https://example.com" required>
+      <button type="submit">添加收藏</button>
+    </form>
+    <p id="status" role="status" aria-live="polite"></p>
+    <p id="empty" hidden>暂无收藏。</p>
+    <ul id="bookmarks" aria-label="收藏列表"></ul>
+  </main>
+  <script>
+    const form = document.getElementById('bookmark-form');
+    const titleInput = document.getElementById('title');
+    const urlInput = document.getElementById('url');
+    const button = form.querySelector('button');
+    const status = document.getElementById('status');
+    const empty = document.getElementById('empty');
+    const list = document.getElementById('bookmarks');
+    let blockedForUnknownResult=false;
+    let loadVersion=0;
+
+    async function requestBookmarks(method = 'GET', bookmark) {
+      const options = { method };
+      if (method === 'POST') {
+        options.headers = { 'Content-Type': 'application/json' };
+        options.body = JSON.stringify(bookmark);
+      }
+      const response = await fetch('/bookmarks', options);
+      const data = await response.json();
+      if (!response.ok) { const error=new Error(data.error?.message || '操作失败，请重试。');error.serverRejected=true;throw error; }
+      return data;
+    }
+
+    async function loadBookmarks() {
+      const requestVersion=++loadVersion;
+      status.textContent='正在读取收藏…';
+      const bookmarks = await requestBookmarks();
+      if(requestVersion!==loadVersion)return bookmarks;
+      list.replaceChildren();
+      empty.hidden = bookmarks.length !== 0;
+      for (const bookmark of bookmarks) {
+        const item = document.createElement('li');
+        const link = document.createElement('a');
+        link.href = bookmark.url;
+        link.textContent = bookmark.title;
+        const address = document.createElement('span');
+        address.textContent = bookmark.url;
+        item.append(link, address);
+        list.append(item);
+      }
+      return bookmarks;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      loadVersion++;
+      button.disabled = true;
+      status.textContent = '正在保存收藏…';
+      const bookmark={title:titleInput.value.trim(),url:urlInput.value.trim()};
+      let saved=false;
+      try {
+        await requestBookmarks('POST', bookmark);
+        saved=true;
+        form.reset();
+        await loadBookmarks();
+        titleInput.focus();
+        status.textContent = '收藏已添加。';
+      } catch (error) {
+        if(saved){status.textContent='收藏已保存，列表刷新失败。请重新读取列表，不要再次提交。';}
+        else if(error.serverRejected){status.textContent=error.message;}
+        else {
+          button.disabled=true;
+          try { const existing=await loadBookmarks();const matching=existing.some(v=>v.title===bookmark.title&&v.url===bookmark.url);if(matching)form.reset();status.textContent='保存结果未知；已重新读取'+(matching?'并发现相同记录，未重复提交。':'，请核对列表后再决定是否重试。'); }
+          catch {blockedForUnknownResult=true;status.textContent='保存结果未知且列表无法读取；请刷新核对后再提交。';return;}
+        }
+      } finally {
+        button.disabled = blockedForUnknownResult;
+      }
+    });
+
+    const initialLoad=loadBookmarks();
+    const initialLoadVersion=loadVersion;
+    initialLoad.then(()=>{if(initialLoadVersion===loadVersion)status.textContent='';}).catch((error) => { if(initialLoadVersion===loadVersion)status.textContent = error.message; });
+  </script>
+</body>
+</html>

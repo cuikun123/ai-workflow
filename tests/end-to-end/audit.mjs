@@ -1,0 +1,15 @@
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {evaluateEndToEnd} from './evaluate.mjs';
+import {reconstructRun} from './transcript.mjs';
+const hash=b=>createHash('sha256').update(b).digest('hex'),normalize=s=>s.replace(/\r\n/g,'\n').trimEnd();
+function records(output){const found=[];function visit(v){if(v&&typeof v==='object'){if(typeof(v.file??v.path)==='string'&&typeof(v.content??v.text)==='string')found.push({path:v.file??v.path,text:v.content??v.text});else Object.values(v).forEach(visit);}}try{visit(JSON.parse(output));}catch{for(const line of output.split('\n'))try{visit(JSON.parse(line));}catch{}}return found;}
+// An explicitly supplied independent audit resolves only observed read syntax.
+// Digests and complete outputs bind the exception; authors are not authenticated.
+export function assertAuditedTaskRun(scenario,run,directory,audit){
+  const automatic=evaluateEndToEnd(scenario,run);if(automatic.ok)return {ok:true,method:'automatic',automatic};
+  assert.ok(automatic.failures.every(f=>f==='unrecognized_read_operation'||f==='missing_skill_body'||f.startsWith('missing_file:')),'An audit cannot waive execution, writes, checks, routing or configuration');assert.equal(audit?.passed,true);assert.equal(audit.failures?.length,0);assert.ok(audit.actual_host_agent);for(const flag of ['resource_check','status_check','writes_verified'])assert.equal(audit[flag],true);
+  assert.equal(audit.events_sha256,hash(fs.readFileSync(path.join(directory,'events.jsonl'))));assert.equal(audit.cache_sha256,hash(fs.readFileSync(path.join(directory,'run.json'))));
+  const original=reconstructRun(directory);for(const key of ['commands','evidence','after','completed','errors','final'])assert.deepEqual(run[key],original[key],'Audit argument differs from reconstructed original '+key);
+  const before=run.evidence.files,after=run.after,changed=after.filter(f=>!before.some(old=>old.path===f.path&&old.sha256===f.sha256)).map(f=>f.path).sort(),removed=before.filter(f=>!after.some(next=>next.path===f.path)).map(f=>f.path).sort();assert.deepEqual([...audit.changed].sort(),changed);assert.deepEqual([...audit.removed].sort(),removed);assert.equal(removed.length,0);assert.ok(changed.every(f=>scenario.allowedWrites.includes(f)));
+  for(const file of [...scenario.requiredFiles,'.agents/skills/'+scenario.requiredSkill+'/SKILL.md']){const proof=audit.read_proofs?.[file],frozen=before.find(f=>f.path===file);assert.ok(proof&&frozen&&typeof frozen.text==='string','Missing full audit proof: '+file);assert.equal(proof.bytes,frozen.bytes);assert.equal(proof.sha256,frozen.sha256);assert.equal(hash(Buffer.from(frozen.text)),proof.sha256);const command=run.commands[proof.command_index];assert.equal(command?.exitCode,0);assert.ok(records(command.output).some(value=>value.path.replaceAll('\\','/')===file&&normalize(value.text)===normalize(frozen.text)),'Proof is not present in complete actual output: '+file);}
+  return {ok:true,method:'independent_original_event_audit',automatic,source_authenticity_verified:false};
+}

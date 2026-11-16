@@ -9,7 +9,7 @@
 
 全部是选定方法的适配，不表示整个上游运行时已集成。部署回退和线上调查前置来自本框架规则，不冒称上游部署能力。
 
-第1步另采用锁定版本的yaml、Ajv及4项传递运行依赖，esbuild仅作构建。版本、SRI和许可证见`package-lock.json`、catalog的`step1_adoption`及构建包的`dependency-manifest.json`/`THIRD_PARTY_NOTICES.md`；本轮以`--ignore-scripts`安装，实际执行了已核对的Windows esbuild二进制。
+运行依赖采用锁定版本的 yaml、Ajv 及其传递依赖，esbuild 仅用于构建。版本、完整性和许可证见 `package-lock.json`、来源清单及构建包的 `dependency-manifest.json` 和 `THIRD_PARTY_NOTICES.md`。
 
 引入前记录：
 

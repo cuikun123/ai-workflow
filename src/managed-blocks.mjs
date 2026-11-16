@@ -2,6 +2,7 @@ import { TextDecoder } from 'node:util';
 import { WorkflowError } from './errors.mjs';
 import navigation from '../templates/navigation.json' with { type: 'json' };
 import { skillNames } from './package.mjs';
+import { assertPortablePath } from './paths.mjs';
 const markers = {
   agents: ['<!-- ai-workflow:begin -->', '<!-- ai-workflow:end -->'],
   ignore: ['# iterlane:begin', '# iterlane:end'],
@@ -35,7 +36,16 @@ export function createNavigationBlock(version) {
   return Buffer.from(navigation.map(line => line.replaceAll('{{framework_version}}', version)).join('\n'));
 }
 export const createIgnoreBlock = () => Buffer.from('# iterlane:begin\n/.ai-workflow/.local/\n# iterlane:end');
-export function createAttributesBlock() {
-  const paths = ['.ai-workflow/**', ...skillNames.map(name => '.agents/skills/' + name + '/**'), 'AGENTS.md', '.gitignore', '.gitattributes', 'docs/workflow/state.yaml', ...initialBasisPaths];
-  return Buffer.from(['# iterlane:attributes:begin', ...paths.map(path => '/' + path + ' -text'), '# iterlane:attributes:end'].join('\n'));
+export function validateStateDocumentPaths(paths) {
+  if (!Array.isArray(paths) || paths.length > 1000) conflict('Invalid state document paths');
+  const seen = new Set();
+  for (const path of paths) { assertPortablePath(path); const id=path.normalize('NFC').toLowerCase(); if (!/^docs\/(?:project|iterations|workflow|releases)\/.+\.(?:md|yaml|json)$/u.test(path) || seen.has(id)) conflict('State protection must name unique exact docs files'); seen.add(id); }
+  return paths;
+}
+export function createAttributesBlock(documentPaths=initialBasisPaths) {
+  validateStateDocumentPaths(documentPaths);
+  const fixed = ['.ai-workflow/**', ...skillNames.map(name => '.agents/skills/' + name + '/**'), 'AGENTS.md', '.gitignore', '.gitattributes', 'docs/workflow/state.yaml'];
+  const extra=[...new Set(documentPaths)].filter(path=>!fixed.includes(path));
+  const literal=path=>{const value='/'+path.replace(/([*?\[\]])/gu,'\\$1'); return /[\s\\]/u.test(value)?JSON.stringify(value):value;};
+  return Buffer.from(['# iterlane:attributes:begin', ...fixed.map(path => '/' + path + ' -text'), ...extra.map(path=>literal(path)+' -text'), '# iterlane:attributes:end'].join('\n'));
 }

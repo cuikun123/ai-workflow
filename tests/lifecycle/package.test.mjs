@@ -5,7 +5,7 @@ const superpowers='a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2
 // GSD digest is pinned from the complete normalized source license at creation.
 const gsd='3a160aec61eeb28e75e8017346ee190db07986a09c4bd72555cc706f1d99e27e';
 for(const [name,licenses] of Object.entries({
-  'workflow-guide':{bmad,gsd},
+  'workflow-guide':{bmad,gsd,superpowers},
   'build-foundation':{bmad},
   'release-work':{gsd,superpowers},
   'handle-incident':{superpowers},

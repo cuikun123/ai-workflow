@@ -1,13 +1,18 @@
-# 结构定义目录
+# 数据结构定义
 
-约定供程序读取的数据字段、类型与允许值。D112第1步已新增[state v1](state-v1.schema.json)，使用JSON Schema 2020-12；`src/state.mjs`负责严格YAML及补充结构检查。
+这里定义程序可读取的字段、类型和允许值，使用 JSON Schema 2020-12。
 
-优先明确 state.yaml；有实际配置或结果格式后再建立相应结构定义，不为了填满目录预先制造格式。
+| 定义 | 内容 |
+| --- | --- |
+| [state v1](state-v1.schema.json) | 当前任务、进度、等待条件、检查点和内容版本 |
+| [workflow-record v1](workflow-record-v1.schema.json) | 任务、确认、检查、审查和收尾记录 |
+| [workflow-record v2](workflow-record-v2.schema.json) | 需求增量、场景覆盖、验证政策和规格同步收据 |
+| [技能资源契约](../skills/_shared/manifest.json) | 能力映射、必要参考、规则归属及来源 |
 
-D110已确认建立受校验的状态写入，D111已认可[state v1字段与转换](../docs/design/documents.md#第0步状态结构与转换)。当前只实现只读结构校验：`node bin/iterlane.mjs validate --state <file> --json`，拒绝未知字段、非法组合、重复键、别名/标签、多文档及不安全相对路径。状态转换、revision写入、外部引用与摘要核验仍未实现；schema通过不证明确认或验收真实。
+`validate`检查状态结构；`status`、`check --documents`和`transition`进一步检查引用、内容摘要、版本冲突和允许的转换。规格同步收据由工具生成，完成任务时核对对应操作。
 
-结构定义约束表达，不限制框架能做哪些事情。新能力需要新字段时，应同步设计读取逻辑、兼容和迁移。
+状态结构保持原版本；旧记录保留原验证门槛，不因新字段出现而自动迁移。验证政策与计划确认绑定，改变后须重新核对。
 
-格式正确不能证明结果真实。业务文档主要使用 Markdown，不能把所有自然语言内容都塞进结构校验。
+格式正确不证明批准、测试或审查真实，也不赋予操作权限。业务说明仍使用 Markdown。模板中的[state 文件](../templates/project/docs/workflow/state.yaml)是初始化依据，不是本仓库的运行状态。
 
-state v1结构示例位于[业务项目模板](../templates/project/docs/workflow/state.yaml)，不是本框架仓库的运行状态。初始化器生成实际UTC与basis，仅建立未开始书签；安装清单和初始化日志由工具严格校验，通用状态转换仍未实现。
+字段与兼容规则见[规格契约](../docs/design/spec-format.md)和[接入设计](../docs/design/integration.md)。

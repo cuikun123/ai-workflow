@@ -128,5 +128,5 @@ test('distribution: real npm artifact initializes and checks a project offline w
   const repeat = run(cli, ['init', '--project', root, '--json'], { cwd: scratch, env });
   assert.equal(repeat.status, 0, repeat.stdout + repeat.stderr); assert.equal(JSON.parse(repeat.stdout).data.action, 'unchanged');
   assert.deepEqual(snapshot(root, true), before);
-  assert.equal(existsSync(join(root, '.ai-workflow/resources/skills')), false);
+  assert.deepEqual(readdirSync(join(root, '.ai-workflow/resources/skills')), ['_shared']);
 });

@@ -1,27 +1,15 @@
 # 业务项目模板
 
-project/ 保存初始化新业务项目时使用的固定文档骨架；不是本框架仓库自己的项目记录，也不是已批准的业务需求。第2步工具实际使用这套输入生成项目资料，具体检查和验收状态见[验证记录](../tests/README.md)。
+`project/` 是初始化新业务项目的文档骨架，不预置真实需求、任务批准或测试结果。安装方法见[快速开始](../docs/quickstart.md)。
 
-完整布局包括 .ai-workflow/ 公共资源与 .agents/skills/ 完整技能说明；初始化器从固定包安装，见[接入设计](../docs/design/integration.md#项目安装布局)。文件存在、资源检查、客户端接入和用户验收仍分别判断。
+| 输入 | 如何使用 |
+| --- | --- |
+| [manifest.json](manifest.json) | 列出空文档、种子文件和目录占位 |
+| [navigation.json](navigation.json) | 生成项目 AGENTS.md 导航，填入安装版本并保留原有区块外说明 |
+| `project/docs/workflow/state.yaml` | 提供合法状态结构；初始化器生成实际时间和文件摘要 |
 
-## 最新空文件约定
+概览、待办、基础约定、规格索引和初始迭代文档可以为空，由后续实际工作填写。具体规格、后续迭代与发布记录在需要时创建；`releases/.gitkeep` 只保留空目录。
 
-- overview、backlog、foundation、specs 索引和 000-foundation 工作文件先建立为零字节文件。
-- 项目AGENTS管理区块由[navigation.json](navigation.json)和实际版本生成；`project/AGENTS.md`说明生成入口，工具不直接复制它。
-- state.yaml保留合法state v1结构示例；工具生成实际UTC和已写文件的basis，不直接复制示例时间。
-- 具体业务规格、后续迭代、发布记录在实际发生时创建。
-- releases/.gitkeep 仅用于保留空目录，不是发布记录。
+`project/AGENTS.md` 说明导航生成入口，不直接复制为项目导航。业务文档不属于后续资源修复可覆盖的文件；同版本重跑保留已有进度。
 
-[manifest.json](manifest.json)列出空文件、种子入口及目录占位，供包检查和初始化器使用。业务生成文件不纳入后续可覆盖的框架资源清单。
-
-## 填充职责
-
-地基填充当前基础约定和本次地基工作记录；需求阶段填写范围、设计和任务；实施与测试记录实际结果；验收后同步当前业务规格；发布时新增实际发布记录。
-
-初始化器保留同版本项目进度，资源repair不覆盖业务资料；存在文件不代表已有约定、完成或验证通过。
-
-## 状态模板边界
-
-state v1已按D111确认并由正式schema校验。示例不是实际项目状态；初始化只建立未开始的书签，状态转换、进度恢复与升级迁移仍属后续任务。
-
-具体业务内容和验收依据由实际工作填写，不能把示例当作批准。spec写法见[规格设计](../docs/design/spec-format.md)。
+状态查询、转换和恢复由运行工具处理，示例状态不代表工作完成或用户批准。规格写法见[规格契约](../docs/design/spec-format.md)，工具边界见[接入设计](../docs/design/integration.md)。

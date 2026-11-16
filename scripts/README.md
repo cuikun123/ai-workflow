@@ -1,24 +1,28 @@
-# 确定性工具操作
+# 工具命令
 
-构建、校验与第2步初始化工具的入口为`bin/iterlane.mjs`。
+源码入口为 `node bin/iterlane.mjs <命令>`；操作外部项目时指定 `--project <dir>`。已安装项目使用 `node .ai-workflow/bin/iterlane.mjs <命令>`，默认定位自己的目录。安装步骤见[快速开始](../docs/quickstart.md)。
 
-- `npm run build`：打包运行依赖和完整Skills、模板、schema、来源及第三方许可，生成`dist/resource-manifest.json`。
-- `npm run ci`：运行所有测试，核对20个必测文件的非空成功汇总，拒绝失败、取消、跳过和todo；构建后保存真实npm包、SHA-256及测试事件到`.artifacts/`。汇总实现为`check-results.mjs`。
-- `npm run check -- --json`：只读核对当前`dist/`；也可`node bin/iterlane.mjs check --package <dir> --json`，目标必须与本运行时的包身份和schema一致。
-- `node bin/iterlane.mjs validate --state <file> --json`：只检查严格YAML和state v1结构。
-- `node bin/iterlane.mjs init --project <dir> [--preview | --repair | --resume | --undo] --json`：固定包初始化、只读预览、同版本显式补缺及未完成初始化恢复；项目根须存在，模式互斥。
-- `node bin/iterlane.mjs check --project <dir> --json`：只读安装清单、区块、进度引用最低存在性和状态结构检查；安装版默认检查自己的项目。
+| 命令 | 用途 |
+| --- | --- |
+| `check [--package <dir> \| --project <dir>] --json` | 检查资源包或项目；`--documents` 增加文档检查 |
+| `validate --state <file> --json` | 检查状态文件结构 |
+| `status --json` | 查询任务、等待条件和依据是否有效 |
+| `doctor --json` | 分类诊断资源、状态、版本、日志和锁问题 |
+| `init --project <dir> [--preview \| --repair \| --resume \| --undo] --json` | 初始化、同版本补缺及未完成初始化恢复 |
+| `spec check --json` | 检查需求、场景、任务引用和声明增量 |
+| `skills check --json` | 检查技能依赖、参考和共享资源 |
+| `spec sync --iteration <path> --task <id> --request-id <id> --expected-revision <n> [--preview] --json` | 同步当前已验收任务；预览零写，执行生成收据 |
 
-构建可指定`node scripts/build.mjs --out <dir>`，只替换已通过检查的同类资源包，拒绝覆盖非包目录和源码祖先。分发包及项目内运行工具无需npm、全局依赖和源码。初始化日志/临时文件和nonce/PID锁支持有限恢复；通用状态写入/恢复、升级和断电绝对保证不在当前能力中。
+状态写入使用 `transition`，受控恢复使用 `recover`，版本操作使用 `upgrade/rollback`。所需内容、来源包、操作编号和内容版本由主流程按项目实际记录准备，不凭例子猜测；接口见[接入设计](../docs/design/integration.md)。
 
-dev.3初始化管理`AGENTS.md`、`.gitignore`和`.gitattributes`三个区块。attributes仅关闭指定框架/状态/初始化依据路径的Git文本转换，区块缺失需显式repair，改动或坏标记拒绝；前像摘要区分不存在与已存在空文件，恢复前核对。不改全局Git配置，不自动迁移旧开发版本。
+诊断退出成功只表示完成诊断，健康情况看结果字段。冲突或无法确认归属时保留现场；资源修复不覆盖业务资料，不借修复升级版本。
 
-实现方向：
+## 构建与测试
 
-- 与 AI 方法分离，使用明确项目根目录和显式参数。
-- 保护已有内容，重复执行不丢进度，冲突与错误明确返回。
-- 资源路径不绑定开发者电脑。
-- 输出便于 AI 和未来 CLI 调用与验证。
-- 初始化、升级、Git 提交和推送各自遵循已确定的授权范围。
+- `npm run build`：构建运行工具、技能、模板、结构定义和许可，输出到 `dist/`。
+- `node scripts/build.mjs --out <dir>`：指定构建目录，只替换通过检查的同类资源包。
+- `npm run ci`：运行必测集、构建和打包，汇总与原始事件输出到 `.artifacts/`；不自动调用模型。
 
-框架采用Node 24/JavaScript ESM，精确依赖及完整性见根锁文件，第三方许可随构建保留。退出码：0成功，2参数无效，3环境不支持，4资源包或依赖损坏，5状态无效，6读写/构建失败，7冲突，8安装未完成或无法安全恢复。首个业务验证方向Java、React、MySQL与框架实现语言无关。
+构建从单一共享来源生成各技能的参考副本，并检查摘要一致性。依赖锁定在根锁文件中；分发包运行无需 npm 或源码开发依赖。
+
+退出码：0 成功，2 参数无效，3 环境不支持，4 包或依赖损坏，5 格式/状态无效，6 读写或构建失败，7 冲突，8 操作未完成或无法安全恢复。

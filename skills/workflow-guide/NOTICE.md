@@ -1,5 +1,9 @@
 # 来源与适配声明
 
+0.2.4接入dev.6显式相邻版本upgrade/rollback及固定外部工具恢复，新增公共版本协议，保留业务/state、原日志及跨版本去重来源边界；没有增加上游来源或依赖，用户主动操作，不自动升级或批准业务验收。
+
+0.2.3接入dev.5只读doctor和受控recover及预览，沿既有公共状态参考说明故障类别、相同来源包、operation-id/revision与未核实观察边界。未增加上游来源或依赖，不自动恢复、联网探测、升级或批准业务验收。
+
 0.2.0接入本框架已确认的Git识别和交接：普通任务Git首尾与暂停保存交execute-task，线上修复交handle-incident；入口保持导航及只读查询边界。本地适配未增加上游来源、脚本或安装依赖，以下0.1.x为历史说明。
 
 0.1.2补明确开轮、暂停恢复和项目概览的交接，以及依据具体确认定位当前轮的规则；入口继续只定位和交接，写入由原主Agent按clarify-design的条件处理。固定来源、完整许可和运行依赖不变。
@@ -91,3 +95,46 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+本地dev.4适配：状态/文档工具和公共引用接入；许可、固定上游及原方法边界保持。
+
+## 0.3.0：U3结构与工具接入
+
+本包将入口与条件方法分层，共同规则在源码_shared单一维护，由构建复制到包内references/common并校验摘要；新任务使用完整Iterlane的v2记录/规格工具。方法可独立携带，运行功能依赖完整固定安装，不包含独立调度器。以上来源和许可原文保留为历史，不因本轮重构新增外部执行权限；本段说明当前包版本与资源布局。
+
+## Superpowers：按需发现方法
+
+固定来源：https://github.com/obra/superpowers/tree/22f0b463e7a5e579904dd6211a520321035526f7
+
+实际适配skills/using-superpowers/SKILL.md（SHA-256：82c5c8866ad7f5dd4440ce66bd7806ba48a2f13771beae5cf112e53f08fe36ba）的原生发现、先看元数据和相关方法后展开的原则。不采用1%相关即强制调用规则、全量触发、配置修改或自动Git。关联Codex参考已核对，配置/模型/提交建议未引入。
+
+完整原许可（LICENSE原字节）：
+
+```text
+MIT License
+
+Copyright (c) 2025 Jesse Vincent
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+
+## 0.3.1修订
+
+按D135接入任务轻重、条件读取与按能力交接，保留原方法职责和全部许可；验证政策采用实际命令/观察及明确审查方式，不照搬“稍有关联即强制调用”的触发。

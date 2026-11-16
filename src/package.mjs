@@ -7,13 +7,17 @@ import { WorkflowError } from './errors.mjs';
 import templateLayout from '../templates/manifest.json' with { type: 'json' };
 import metadata from '../package.json' with { type: 'json' };
 import stateSchema from '../schemas/state-v1.schema.json' with { type: 'json' };
+import recordSchema from '../schemas/workflow-record-v1.schema.json' with { type: 'json' };
+import recordSchema2 from '../schemas/workflow-record-v2.schema.json' with {type:'json'};
 import navigation from '../templates/navigation.json' with { type: 'json' };
-export const skillNames = Object.freeze(['build-foundation', 'clarify-design', 'debug-issue', 'discuss-design', 'execute-task', 'handle-incident', 'plan-tasks', 'release-work', 'review-work', 'test-work', 'workflow-guide']);
+import {skillNames} from './skill-names.mjs';
+import {inspectSkillResources,skillPolicy,providerResources} from './skill-resources.mjs';
+export {skillNames} from './skill-names.mjs';
 const fail = message => { throw new WorkflowError('PACKAGE_INVALID', message); };
 const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
-export function checkPackage(root) {
+export function checkPackage(root,{skillManifest=skillPolicy,sharedDigests}={}) {
   const manifestFile = resolveRegularFile(root, 'resource-manifest.json');
   let manifest; try {
     const bytes = readFileSync(manifestFile); if (bytes.length > 4 * 1024 * 1024) fail('Resource manifest is too large');
@@ -36,11 +40,19 @@ export function checkPackage(root) {
   const expected = manifest.files.map(entry => entry.path).sort();
   if (JSON.stringify(actual) !== JSON.stringify(expected)) fail('Resource inventory contains missing or unlisted files');
   const mandatory = ['package.json', 'bin/iterlane.mjs', 'runtime/cli.mjs', 'resources/schemas/state-v1.schema.json', 'resources/sources/catalog.yaml', 'resources/sources/README.md', 'resources/templates/manifest.json', 'resources/templates/navigation.json', 'dependency-manifest.json', 'THIRD_PARTY_NOTICES.md', 'README.md'];
+  mandatory.push('resources/schemas/workflow-record-v1.schema.json');
+  mandatory.push('resources/schemas/workflow-record-v2.schema.json','resources/sources/openspec-NOTICE.md');
+  mandatory.push('resources/skills/_shared/manifest.json','resources/skills/_shared/resource-index.json');
+  for(const name of skillNames)for(const resource of providerResources(skillManifest,name))mandatory.push('resources/skills/'+name+'/'+resource);
   for (const path of [...templateLayout.empty_files, ...templateLayout.seed_files, ...templateLayout.directory_placeholders]) mandatory.push('resources/templates/project/' + path);
   for (const name of skillNames) mandatory.push(`resources/skills/${name}/SKILL.md`, `resources/skills/${name}/NOTICE.md`);
   for (const name of mandatory) if (!expected.includes(name)) fail('Missing required package resource: ' + name);
   let distributedSchema; try { distributedSchema = JSON.parse(readFileSync(join(root, 'resources/schemas/state-v1.schema.json'), 'utf8')); } catch { fail('Invalid packaged state schema'); }
   if (!isDeepStrictEqual(distributedSchema, stateSchema)) fail('Packaged state schema differs from runtime schema');
+  let distributedRecords; try { distributedRecords=JSON.parse(readFileSync(join(root,'resources/schemas/workflow-record-v1.schema.json'),'utf8')); } catch { fail('Invalid record schema'); }
+  if (!isDeepStrictEqual(distributedRecords,recordSchema)) fail('Packaged record schema differs from runtime schema');
+  let distributedRecords2;try{distributedRecords2=JSON.parse(readFileSync(join(root,'resources/schemas/workflow-record-v2.schema.json'),'utf8'));}catch{fail('Invalid v2 record schema');}
+  if(!isDeepStrictEqual(distributedRecords2,recordSchema2))fail('Packaged v2 record schema differs from runtime schema');
   let distributedNavigation; try { distributedNavigation = JSON.parse(readFileSync(join(root, 'resources/templates/navigation.json'), 'utf8')); } catch { fail('Invalid packaged navigation template'); }
   if (!isDeepStrictEqual(distributedNavigation, navigation)) fail('Packaged navigation differs from runtime template');
   let distributedLayout; try { distributedLayout = JSON.parse(readFileSync(join(root, 'resources/templates/manifest.json'), 'utf8')); } catch { fail('Invalid packaged template layout'); }
@@ -49,5 +61,6 @@ export function checkPackage(root) {
   let pkg; try { pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')); } catch { fail('Invalid package.json'); }
   if (pkg.name !== meta.name || pkg.version !== meta.version || pkg.license !== metadata.license || pkg.type !== 'module' || !exactKeys(pkg.bin, [meta.name]) || pkg.bin[meta.name] !== 'bin/iterlane.mjs') fail('Package identity does not match inventory');
   if (pkg.license !== 'UNLICENSED' && !expected.includes('LICENSE')) fail('Root license is missing');
-  return { name: meta.name, version: meta.version, files: expected.length, state_schemas: meta.state_schemas };
+  const skills=inspectSkillResources(root,{expectedPolicy:skillManifest,expectedDigests:sharedDigests});if(!skills.valid)throw new WorkflowError('PACKAGE_INVALID','Skill resources, capabilities or shared contracts are inconsistent',skills.issues);
+  return { name: meta.name, version: meta.version, files: expected.length, state_schemas: meta.state_schemas,skills };
 }

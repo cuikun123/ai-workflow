@@ -1,0 +1,579 @@
+{
+  "schema_version": 1,
+  "entry": {
+    "provider": "workflow-guide",
+    "required_resources": [
+      "references/common/work-contract.md",
+      "references/common/write-contract.md",
+      "references/common/capabilities.json",
+      "references/common/rules.json",
+      "references/common/runtime-query.md",
+      "references/common/spec-runtime.md",
+      "references/common/state-runtime.md",
+      "references/common/version-runtime.md",
+      "references/navigation.md",
+      "references/recovery.md",
+      "references/common/routing.md"
+    ]
+  },
+  "entry_budget": {
+    "max_lines": 150,
+    "max_bytes": 10240,
+    "exceptions": []
+  },
+  "capabilities": [
+    {
+      "id": "clarify",
+      "provider": "clarify-design",
+      "request_modes": [
+        "prepare"
+      ],
+      "required_resources": [
+        "references/common/work-contract.md",
+        "references/common/write-contract.md",
+        "references/common/capabilities.json",
+        "references/common/rules.json",
+        "references/common/runtime-query.md",
+        "references/common/spec-runtime.md",
+        "references/common/state-runtime.md",
+        "references/common/version-runtime.md",
+        "references/clarification.md",
+        "references/iteration-records.md",
+        "references/common/routing.md"
+      ],
+      "fallback": "report_gap",
+      "return_contract": [
+        "subject",
+        "request_mode",
+        "target_version",
+        "changes",
+        "checks",
+        "open_items",
+        "return_to"
+      ]
+    },
+    {
+      "id": "design_discussion",
+      "provider": "discuss-design",
+      "request_modes": [
+        "prepare",
+        "query"
+      ],
+      "required_resources": [
+        "references/common/work-contract.md",
+        "references/common/write-contract.md",
+        "references/common/capabilities.json",
+        "references/common/rules.json",
+        "references/common/runtime-query.md",
+        "references/common/spec-runtime.md",
+        "references/common/state-runtime.md",
+        "references/common/version-runtime.md",
+        "references/discussion.md",
+        "references/common/routing.md"
+      ],
+      "fallback": "report_gap",
+      "return_contract": [
+        "subject",
+        "request_mode",
+        "target_version",
+        "changes",
+        "checks",
+        "open_items",
+        "return_to"
+      ]
+    },
+    {
+      "id": "planning",
+      "provider": "plan-tasks",
+      "request_modes": [
+        "prepare"
+      ],
+      "required_resources": [
+        "references/common/work-contract.md",
+        "references/common/write-contract.md",
+        "references/common/capabilities.json",
+        "references/common/rules.json",
+        "references/common/runtime-query.md",
+        "references/common/spec-runtime.md",
+        "references/common/state-runtime.md",
+        "references/common/version-runtime.md",
+        "references/planning.md",
+        "references/common/routing.md"
+      ],
+      "fallback": "report_gap",
+      "return_contract": [
+        "subject",
+        "request_mode",
+        "target_version",
+        "changes",
+        "checks",
+        "open_items",
+        "return_to"
+      ]
+    },
+    {
+      "id": "implementation",
+      "provider": "execute-task",
+      "request_modes": [
+        "execute"
+      ],
+      "required_resources": [
+        "references/common/work-contract.md",
+        "references/common/write-contract.md",
+        "references/common/capabilities.json",
+        "references/common/rules.json",
+        "references/common/runtime-query.md",
+        "references/common/spec-runtime.md",
+        "references/common/state-runtime.md",
+        "references/common/version-runtime.md",
+        "references/implementation.md",
+        "references/review-and-acceptance.md",
+        "references/git-workflow.md",
+        "references/common/routing.md"
+      ],
+      "fallback": "report_gap",
+      "return_contract": [
+        "subject",
+        "request_mode",
+        "target_version",
+        "changes",
+        "checks",
+        "open_items",
+        "return_to"
+      ]
+    },
+    {
+      "id": "foundation",
+      "provider": "build-foundation",
+      "request_modes": [
+        "prepare",
+        "execute"
+      ],
+      "required_resources": [
+        "references/common/work-contract.md",
+        "references/common/write-contract.md",
+        "references/common/capabilities.json",
+        "references/common/rules.json",
+        "references/common/runtime-query.md",
+        "references/common/spec-runtime.md",
+        "references/common/state-runtime.md",
+        "references/common/version-runtime.md",
+        "references/foundation.md",
+        "references/common/routing.md"
+      ],
+      "fallback": "report_gap",
+      "return_contract": [
+        "subject",
+        "request_mode",
+        "target_version",
+        "changes",
+        "checks",
+        "open_items",
+        "return_to"
+      ]
+    },
+    {
+      "id": "testing",
+      "provider": "test-work",
+      "request_modes": [
+        "prepare",
+        "execute"
+      ],
+      "required_resources": [
+        "references/common/work-contract.md",
+        "references/common/write-contract.md",
+        "references/common/capabilities.json",
+        "references/common/rules.json",
+        "references/common/runtime-query.md",
+        "references/common/spec-runtime.md",
+        "references/common/state-runtime.md",
+        "references/common/version-runtime.md",
+        "references/testing.md",
+        "references/common/routing.md"
+      ],
+      "fallback": "report_gap",
+      "return_contract": [
+        "subject",
+        "request_mode",
+        "target_version",
+        "changes",
+        "checks",
+        "open_items",
+        "return_to"
+      ]
+    },
+    {
+      "id": "diagnosis",
+      "provider": "debug-issue",
+      "request_modes": [
+        "query",
+        "prepare",
+        "execute"
+      ],
+      "required_resources": [
+        "references/common/work-contract.md",
+        "references/common/write-contract.md",
+        "references/common/capabilities.json",
+        "references/common/rules.json",
+        "references/common/runtime-query.md",
+        "references/common/spec-runtime.md",
+        "references/common/state-runtime.md",
+        "references/common/version-runtime.md",
+        "references/diagnosis.md",
+        "references/common/routing.md"
+      ],
+      "fallback": "report_gap",
+      "return_contract": [
+        "subject",
+        "request_mode",
+        "target_version",
+        "changes",
+        "checks",
+        "open_items",
+        "return_to"
+      ]
+    },
+    {
+      "id": "review",
+      "provider": "review-work",
+      "request_modes": [
+        "query",
+        "prepare",
+        "execute"
+      ],
+      "required_resources": [
+        "references/common/work-contract.md",
+        "references/common/write-contract.md",
+        "references/common/capabilities.json",
+        "references/common/rules.json",
+        "references/common/runtime-query.md",
+        "references/common/spec-runtime.md",
+        "references/common/state-runtime.md",
+        "references/common/version-runtime.md",
+        "references/reviewing.md",
+        "references/common/routing.md"
+      ],
+      "fallback": "report_gap",
+      "return_contract": [
+        "subject",
+        "request_mode",
+        "target_version",
+        "changes",
+        "checks",
+        "open_items",
+        "return_to"
+      ]
+    },
+    {
+      "id": "release",
+      "provider": "release-work",
+      "request_modes": [
+        "query",
+        "prepare",
+        "execute"
+      ],
+      "required_resources": [
+        "references/common/work-contract.md",
+        "references/common/write-contract.md",
+        "references/common/capabilities.json",
+        "references/common/rules.json",
+        "references/common/runtime-query.md",
+        "references/common/spec-runtime.md",
+        "references/common/state-runtime.md",
+        "references/common/version-runtime.md",
+        "references/release.md",
+        "references/common/routing.md"
+      ],
+      "fallback": "report_gap",
+      "return_contract": [
+        "subject",
+        "request_mode",
+        "target_version",
+        "changes",
+        "checks",
+        "open_items",
+        "return_to"
+      ]
+    },
+    {
+      "id": "incident",
+      "provider": "handle-incident",
+      "request_modes": [
+        "query",
+        "prepare",
+        "execute"
+      ],
+      "required_resources": [
+        "references/common/work-contract.md",
+        "references/common/write-contract.md",
+        "references/common/capabilities.json",
+        "references/common/rules.json",
+        "references/common/runtime-query.md",
+        "references/common/spec-runtime.md",
+        "references/common/state-runtime.md",
+        "references/common/version-runtime.md",
+        "references/incident.md",
+        "references/common/routing.md"
+      ],
+      "fallback": "report_gap",
+      "return_contract": [
+        "subject",
+        "request_mode",
+        "target_version",
+        "changes",
+        "checks",
+        "open_items",
+        "return_to"
+      ]
+    }
+  ],
+  "shared_resources": [
+    {
+      "id": "work-contract",
+      "source": "references/work-contract.md",
+      "target": "references/common/work-contract.md"
+    },
+    {
+      "id": "write-contract",
+      "source": "references/write-contract.md",
+      "target": "references/common/write-contract.md"
+    },
+    {
+      "id": "runtime-query",
+      "source": "references/runtime-query.md",
+      "target": "references/common/runtime-query.md"
+    },
+    {
+      "id": "state-runtime",
+      "source": "references/state-runtime.md",
+      "target": "references/common/state-runtime.md"
+    },
+    {
+      "id": "version-runtime",
+      "source": "references/version-runtime.md",
+      "target": "references/common/version-runtime.md"
+    },
+    {
+      "id": "spec-runtime",
+      "source": "references/spec-runtime.md",
+      "target": "references/common/spec-runtime.md"
+    },
+    {
+      "id": "capabilities",
+      "source": "@capabilities",
+      "target": "references/common/capabilities.json"
+    },
+    {
+      "id": "rules",
+      "source": "@rules",
+      "target": "references/common/rules.json"
+    },
+    {
+      "id": "routing",
+      "source": "references/routing.md",
+      "target": "references/common/routing.md"
+    }
+  ],
+  "rules": [
+    {
+      "id": "confirmation",
+      "layers": [
+        "accountability"
+      ],
+      "source": [
+        "D05",
+        "D70"
+      ],
+      "applies_when": "判断批准、验收或接续时",
+      "enforced_by": "Agent核对真实指令；transition核对声明与内容摘要",
+      "retire_when": "不因模型升级退役",
+      "resources": [
+        "references/work-contract.md#具体确认"
+      ]
+    },
+    {
+      "id": "work-basis",
+      "layers": [
+        "accountability"
+      ],
+      "source": [
+        "D70",
+        "D81"
+      ],
+      "applies_when": "实施、测试、诊断或审查候选时",
+      "enforced_by": "Agent对照有效规格、本轮变更和目标版本；spec check核对结构",
+      "retire_when": "不因模型升级退役",
+      "resources": [
+        "references/work-contract.md#同一组依据"
+      ]
+    },
+    {
+      "id": "evidence",
+      "layers": [
+        "accountability"
+      ],
+      "source": [
+        "D74",
+        "D81"
+      ],
+      "applies_when": "声称检查、审查或成果通过时",
+      "enforced_by": "真实工具输出与独立上下文；CLI只核对本地声明",
+      "retire_when": "不因模型升级退役",
+      "resources": [
+        "references/work-contract.md#证据与验收"
+      ]
+    },
+    {
+      "id": "spec-sync",
+      "layers": [
+        "accountability"
+      ],
+      "source": [
+        "D133"
+      ],
+      "applies_when": "任务验收后的规格收尾",
+      "enforced_by": "spec check、spec sync、committed日志及complete",
+      "retire_when": "不因模型升级退役",
+      "resources": [
+        "references/work-contract.md#规格随交付更新"
+      ]
+    },
+    {
+      "id": "single-owner",
+      "layers": [
+        "preference",
+        "accountability"
+      ],
+      "source": [
+        "D56",
+        "D70"
+      ],
+      "applies_when": "专项接手或多人协作",
+      "enforced_by": "原主Agent统一正式记录与验收",
+      "retire_when": "变更协作政策须保留责任归属与验收",
+      "resources": [
+        "references/write-contract.md#主责与交接"
+      ]
+    },
+    {
+      "id": "write-before-read",
+      "layers": [
+        "accountability",
+        "environment"
+      ],
+      "source": [
+        "D70",
+        "D110"
+      ],
+      "applies_when": "写业务资料或恢复工具操作",
+      "enforced_by": "Agent写前回读；CLI前后像与锁核对",
+      "retire_when": "不因模型升级取消历史保护",
+      "resources": [
+        "references/write-contract.md#写入与历史"
+      ]
+    },
+    {
+      "id": "permissions",
+      "layers": [
+        "accountability"
+      ],
+      "source": [
+        "D05",
+        "D81"
+      ],
+      "applies_when": "拟执行Git、外部写入、部署或实质范围变化",
+      "enforced_by": "Agent核对项目原授权；工具不认证人类批准",
+      "retire_when": "不因模型升级退役",
+      "resources": [
+        "references/write-contract.md#操作授权"
+      ]
+    },
+    {
+      "id": "host-capability",
+      "layers": [
+        "environment",
+        "accountability"
+      ],
+      "source": [
+        "D56",
+        "D74"
+      ],
+      "applies_when": "需要独立上下文、浏览器或平台工具",
+      "enforced_by": "核对真实宿主工具；不角色扮演或伪称调用",
+      "retire_when": "宿主变化时更新能力假设，不取消真实性",
+      "resources": [
+        "references/write-contract.md#宿主能力"
+      ]
+    },
+    {
+      "id": "task-wait",
+      "layers": [
+        "preference",
+        "accountability"
+      ],
+      "source": [
+        "D70",
+        "D81"
+      ],
+      "applies_when": "提交一个成果但尚未明确验收",
+      "enforced_by": "主Agent保留等待；当前full状态门槛",
+      "retire_when": "只有明确的新验收政策及适配验证后调整",
+      "resources": [
+        "references/work-contract.md#证据与验收"
+      ]
+    },
+    {
+      "id": "encoding",
+      "layers": [
+        "environment",
+        "compensation"
+      ],
+      "source": [
+        "D118"
+      ],
+      "applies_when": "命令输出乱码或不能核对原文",
+      "enforced_by": "使用UTF-8读取/JSON输出并核对原字节",
+      "retire_when": "相应宿主的中英文、空格路径读写用例持续通过后提出移除专门兜底",
+      "resources": [
+        "references/write-contract.md#有条件的补偿"
+      ]
+    },
+    {
+      "id": "repeated-failure",
+      "layers": [
+        "compensation",
+        "accountability"
+      ],
+      "source": [
+        "D57",
+        "D59"
+      ],
+      "applies_when": "同一问题连续两轮无新证据或反复回退",
+      "enforced_by": "停止叠加补丁，重新取证；未知保持未知",
+      "retire_when": "有对照评测证明更少约束仍能及时取证且不假报关闭后提出调整",
+      "resources": [
+        "references/write-contract.md#有条件的补偿"
+      ]
+    },
+    {
+      "id": "proportionate-work",
+      "layers": [
+        "preference",
+        "accountability"
+      ],
+      "source": [
+        "D132",
+        "D135",
+        "D71"
+      ],
+      "applies_when": "选择技能、普通技术步骤、验证深度或辅助交接",
+      "enforced_by": "Agent按实际请求与风险判断；v2工具核对定义、确认与声明政策",
+      "retire_when": "可以按已确认项目政策调整流程偏好；模型升级不自动取消验收、必要证据、历史保护或PR独立审查",
+      "resources": [
+        "references/routing.md#先判断当前请求",
+        "references/routing.md#验证与审查",
+        "references/routing.md#能力交接与缺失"
+      ]
+    }
+  ]
+}

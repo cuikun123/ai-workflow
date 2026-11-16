@@ -7,7 +7,7 @@ const invalid = (message, details = []) => { throw new WorkflowError('STATE_INVA
 const validator = new Ajv2020({ allErrors: true, strict: true, strictTypes: false, coerceTypes: false, useDefaults: false }).compile(schema);
 const standardTags = new Set(['tag:yaml.org,2002:map', 'tag:yaml.org,2002:seq', 'tag:yaml.org,2002:str', 'tag:yaml.org,2002:null', 'tag:yaml.org,2002:bool', 'tag:yaml.org,2002:int', 'tag:yaml.org,2002:float']);
 
-function isLosslessInteger(node) {
+export function isLosslessInteger(node) {
   if (!Number.isSafeInteger(node.value)) return false;
   const source = node.source;
   if (/^[+-]?0[ox]/i.test(source)) {

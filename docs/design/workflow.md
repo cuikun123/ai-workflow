@@ -4,7 +4,7 @@
 
 [第一次开始](#第一次开始项目) · [完成一轮开发](#完成一轮开发) · [遇到问题](#中断或遇到问题时) · [发布与后续](#发布与后续工作)
 
-> 本页是已确认的流程设计。实际实现和验证范围见[当前交接](../handoff.md)，确认依据见[决策记录](../decisions.md)。
+> 本页说明任务如何推进及用户何时参与。规则依据见[决策记录](../decisions.md)，实际支持范围见[验证记录](../../tests/README.md)。
 
 ## 流程总览
 
@@ -268,6 +268,33 @@ PR 合入前的代码审查使用全新独立上下文 Agent。执行者的测�
 - 理解或记录反馈不批准开发；后续回到目标、设计与计划。
 
 框架版本固定，日常不自动跟随新版。默认当前任务验收收尾后，由用户触发独立升级任务；差异、兼容性、前后版本及保留要求见[框架升级](integration.md#框架升级)。
+
+<a id="下一轮任务轻重与加载方式待确认"></a>
+## 任务轻重与加载方式
+
+按任务影响和未知选择流程，保留适用的测试、业务确认、用户验收和PR独立审查。简化读取不取消这些条件，实际检查范围见[验证记录](../../tests/README.md)。
+
+| execution_mode | 判断条件 | 内部流程 |
+| --- | --- | --- |
+| `direct` | 明确且低影响的文案/排版、已有任务内普通技术步骤，或独立只读请求；容易撤销，无业务/接口/权限/数据规则变化 | 最小入口及适用约定，直接处理，做必要核对；不强制专项Skill全文、独立方案文档或重复提问 |
+| `light` | 行为与验收明确的局部功能或普通修复，风险已知且有可执行验证 | 读取相关方法；简短方案与计划可联合表达，补受影响验证 |
+| `full` | 业务不清、跨模块/接口、认证授权、数据迁移、安全、费用、部署或不可轻易恢复的变化 | 按需澄清、设计、计划、专项验证与审查 |
+
+按不确定性、影响及恢复代价判断，不按行数或用户说“简单”降级。direct发现业务变化升到light；出现关键未知或高风险升到full，说明触发原因，必要确认仍按既有边界。用户指定技能时读取其入口，再按适用条件展开参考，保留实际请求范围。
+
+无适用迭代的独立只读/低影响资料请求在对话交付，不为满足结构新建迭代；业务行为变化必须进入适用迭代并关联需求与增量。已有任务的普通步骤沿原授权执行，任务成果边界不变；新任务仍需实际范围/计划确认，只缩短内容和交互，不从一条模糊指令生成批准。
+
+v2 task登记`execution_mode`、理由及`verification_policy`。policy精确声明所需检查类型、必测scenario_refs、验收前审查为independent或simplified；它随任务definition绑定真实计划确认，改变后重核对。普通功能与高风险任务默认independent；simplified只用于低影响非业务变更，PR合入前独立代码审查另行保留。
+
+v2 check用`check_type`区分`test_suite`、`command`、`observation`，result为passed/failed/not_run/not_applicable。test_suite要求实际命令、exit_code=0且test_count>=1；command要求实际命令及exit_code=0，test_count=null；observation的command/exit_code/test_count均为null，必须给method、expected、actual及实际产物evidence。每类通过均绑定同一候选artifacts，covers为实际场景身份数组；非业务内容可为空。必需项的failed/not_run/not_applicable阻止提交验收；不适用项给理由且不能覆盖必需项。
+
+verification_policy.required_check_types非空，至少一种且全部须有适用通过记录；required_scenario_refs为task.scenario_refs的子集，每个必测场景至少被一个适用check覆盖。policy.review_mode为independent或simplified，review记录的mode必须匹配，must_fix_open=0且result=passed；independent还必须有真实独立context_id，由主Agent核对来源。
+
+v2 review标明independent或simplified及来源上下文。简化核对不得称独立审查；普通任务需真实独立上下文。checks/审查只覆盖实际证据和内容，用户验收继续单独记录。框架CI非零测试/必测文件的门槛保持，不能用业务任务的观察记录绕过框架测试。
+
+轻重判定由Agent按manifest和项目事实执行，工具检查声明与确认、记录和证据的一致性；工具不证明业务风险判断绝对正确。v1和未声明新政策的v2保留test_suite/independent默认。新模式只在匹配新包及明确声明政策时有效，不自动迁移旧项目。
+
+显式政策绑定失效时，spec/status列出STALE_PLAN_CONFIRMATION，status的policy_confirmation_current=false，诊断为stale；缺失/拒绝也说明原因。只读提示不批准政策。正常record、重新进入verify、等待/登记真实计划确认路径仍可用；实际验收/同步/complete重核对计划与候选，不能借新记录绕过旧确认。
 
 ## 详细规则入口
 

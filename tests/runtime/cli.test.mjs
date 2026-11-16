@@ -8,9 +8,9 @@ import { tmpdir } from 'node:os';
 import { resourcePackage, project, snapshot } from '../helpers/installation.mjs';
 const entry = fileURLToPath(new URL('../../bin/iterlane.mjs', import.meta.url));
 const run = args => spawnSync(process.execPath, [entry, ...args], { encoding: 'utf8', windowsHide: true });
-test('cli: help and version execute without suggesting unavailable commands', () => {
+test('cli: help and version expose the implemented tool interfaces', () => {
   const help = run(['--help']); assert.equal(help.status, 0);
-  assert.match(help.stdout, /check/); assert.match(help.stdout, /validate/); assert.match(help.stdout, /init/); assert.doesNotMatch(help.stdout, /upgrade|rollback/);
+  assert.match(help.stdout, /check/); assert.match(help.stdout, /validate/); assert.match(help.stdout, /init/); assert.match(help.stdout, /upgrade/); assert.match(help.stdout, /rollback/);
   assert.equal(run(['--version']).status, 0);
 });
 test('cli: invalid commands and options return JSON errors with exit 2', () => {

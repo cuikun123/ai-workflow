@@ -6,23 +6,26 @@ import { stringify } from 'yaml';
 import metadata from '../package.json' with { type: 'json' };
 import layout from '../templates/manifest.json' with { type: 'json' };
 import stateSchema from '../schemas/state-v1.schema.json' with { type: 'json' };
+import recordSchema from '../schemas/workflow-record-v1.schema.json' with {type:'json'};
+import recordSchema2 from '../schemas/workflow-record-v2.schema.json' with {type:'json'};
 import navigation from '../templates/navigation.json' with { type: 'json' };
 import { checkPackage, sha256, skillNames } from './package.mjs';
-import { isWithin } from './paths.mjs';
+import { isWithin,assertPortablePath } from './paths.mjs';
 import { validateStateYaml } from './state.mjs';
 import { projectPath, readProjectFile } from './project-paths.mjs';
-import { createNavigationBlock, createIgnoreBlock, createAttributesBlock, initialBasisPaths, parseManagedBlock, replaceManagedBlock } from './managed-blocks.mjs';
+import { createNavigationBlock, createIgnoreBlock, createAttributesBlock, initialBasisPaths, validateStateDocumentPaths, parseManagedBlock, replaceManagedBlock } from './managed-blocks.mjs';
 import { applyInstallationPlan, assertNoPendingOperation, scanOperations, recoverInstallation, decode, equalBytes } from './install-journal.mjs';
 import { WorkflowError } from './errors.mjs';
+import {inspectSkillResources,skillPolicy,providerResources} from './skill-resources.mjs';
 
 const manifestPath = '.ai-workflow/manifest.json';
 const roots = skillNames.map(name => '.agents/skills/' + name);
-const blockBlueprint = () => [
-  { path: 'AGENTS.md', kind: 'agents', bytes: createNavigationBlock(metadata.version) },
+const blockBlueprint = (paths=initialBasisPaths,version=metadata.version) => [
+  { path: 'AGENTS.md', kind: 'agents', bytes: createNavigationBlock(version) },
   { path: '.gitignore', kind: 'ignore', bytes: createIgnoreBlock() },
-  { path: '.gitattributes', kind: 'attributes', bytes: createAttributesBlock() },
+  { path: '.gitattributes', kind: 'attributes', bytes: createAttributesBlock(paths) },
 ];
-const blockRecords = () => blockBlueprint().map(({ path, kind, bytes }) => ({ path, kind, sha256: sha256(bytes) }));
+const blockRecords = (paths=initialBasisPaths) => blockBlueprint(paths).map(({ path, kind, bytes }) => ({ path, kind, sha256: sha256(bytes) }));
 const fail = (message, code = 'CONFLICT') => { throw new WorkflowError(code, message); };
 const exact = (obj, keys) => obj && typeof obj === 'object' && !Array.isArray(obj) && Object.keys(obj).sort().join(',') === [...keys].sort().join(',');
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
@@ -34,70 +37,97 @@ function canonicalRoot(root) {
 }
 const installedLauncher = Buffer.from('#!/usr/bin/env node\nimport {fileURLToPath} from "node:url";\ntry { const {runCli}=await import("../runtime/cli.mjs"); process.exitCode=await runCli(process.argv.slice(2),{projectRoot:fileURLToPath(new URL("../../",import.meta.url))}); } catch { process.stdout.write(JSON.stringify({ok:false,error:{code:"PACKAGE_INVALID",message:"Installed runtime could not start",details:[]}})+"\\n"); process.exitCode=4; }\n');
 
+export {installedLauncher};
+export const compatibleBlocks=(version,paths)=>blockBlueprint(paths,version);
+export function validateCompatibleManifest(root,manifest,identity){if(!['0.3.0-dev.5','0.3.0-dev.6'].includes(identity.version)||!isDeepStrictEqual(manifest.package,identity))fail('Unsupported version/source identity');return validateManifest(root,manifest,false,identity.version);}
 function blueprint(packageRoot) {
   checkPackage(packageRoot);
   const bytes = fs.readFileSync(join(packageRoot, 'resource-manifest.json')), source = JSON.parse(bytes);
   const files = source.files.map(entry => ({
-    path: entry.path.startsWith('resources/skills/') ? '.agents/' + entry.path.slice('resources/'.length) : '.ai-workflow/' + entry.path,
+    path: entry.path.startsWith('resources/skills/')&&!entry.path.startsWith('resources/skills/_shared/') ? '.agents/' + entry.path.slice('resources/'.length) : '.ai-workflow/' + entry.path,
     after: entry.path === 'bin/iterlane.mjs' ? installedLauncher : fs.readFileSync(join(packageRoot, entry.path)), kind: 'file',
   }));
   const pkg = { name: metadata.name, version: metadata.version, source_manifest_sha256: sha256(bytes), state_schemas: [1] };
   return { files, package: pkg };
 }
-function validateManifest(root, manifest) {
-  if (!exact(manifest, ['manifest_version', 'kind', 'installation_id', 'package', 'skill_roots', 'files', 'blocks']) || manifest.manifest_version !== 1 || manifest.kind !== 'iterlane-project-installation' || !uuid(manifest.installation_id)) fail('Invalid installation manifest');
+function validateManifest(root, manifest,diagnostic=false,expectedVersion=metadata.version) {
+  if (!exact(manifest, ['manifest_version', 'kind', 'installation_id', 'package', 'skill_roots', 'files', 'blocks','state_document_paths']) || manifest.manifest_version !== 2 || manifest.kind !== 'iterlane-project-installation' || !uuid(manifest.installation_id)) fail('Invalid installation manifest');
+  validateStateDocumentPaths(manifest.state_document_paths);
   const pkg = manifest.package;
-  if (!exact(pkg, ['name', 'version', 'source_manifest_sha256', 'state_schemas']) || pkg.name !== metadata.name || pkg.version !== metadata.version || !digest(pkg.source_manifest_sha256) || JSON.stringify(pkg.state_schemas) !== '[1]' || JSON.stringify(manifest.skill_roots) !== JSON.stringify(roots)) fail('Unknown or mixed installed framework version');
+  if (!exact(pkg, ['name', 'version', 'source_manifest_sha256', 'state_schemas']) || pkg.name !== metadata.name || pkg.version !== expectedVersion || !digest(pkg.source_manifest_sha256) || JSON.stringify(pkg.state_schemas) !== '[1]' || JSON.stringify(manifest.skill_roots) !== JSON.stringify(roots)) fail('Unknown or mixed installed framework version');
   if (!Array.isArray(manifest.files) || manifest.files.length > 10000 || !manifest.files.length) fail('Invalid installed resource list');
   const ids = new Set();
   for (const entry of manifest.files) {
     if (!exact(entry, ['path', 'bytes', 'sha256']) || typeof entry.path !== 'string' || !managed(entry.path) || !Number.isSafeInteger(entry.bytes) || entry.bytes < 0 || entry.bytes > 8 * 1024 * 1024 || !digest(entry.sha256)) fail('Invalid installed resource record');
-    projectPath(root, entry.path); const id = entry.path.normalize('NFC').toLowerCase();
+    if(diagnostic)assertPortablePath(entry.path);else projectPath(root, entry.path); const id = entry.path.normalize('NFC').toLowerCase();
     if (ids.has(id)) fail('Duplicate installed resource'); ids.add(id);
   }
   const required = ['package.json', 'bin/iterlane.mjs', 'runtime/cli.mjs', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'dependency-manifest.json', 'resources/schemas/state-v1.schema.json', 'resources/sources/catalog.yaml', 'resources/sources/README.md', 'resources/templates/manifest.json', 'resources/templates/navigation.json'].map(path => '.ai-workflow/' + path);
+  required.push('.ai-workflow/resources/schemas/workflow-record-v1.schema.json');
+  if(!['0.3.0-dev.5','0.3.0-dev.6'].includes(expectedVersion))required.push('.ai-workflow/resources/schemas/workflow-record-v2.schema.json');
+  if(expectedVersion===metadata.version){required.push('.ai-workflow/resources/skills/_shared/manifest.json','.ai-workflow/resources/skills/_shared/resource-index.json');for(const name of skillNames)for(const path of providerResources(skillPolicy,name))required.push('.agents/skills/'+name+'/'+path);}
+  else{required.push('.agents/skills/workflow-guide/references/state-runtime.md');if(expectedVersion!=='0.3.0-dev.5')required.push('.agents/skills/workflow-guide/references/version-runtime.md');}
   for (const path of [...layout.empty_files, ...layout.seed_files, ...layout.directory_placeholders]) required.push('.ai-workflow/resources/templates/project/' + path);
   for (const root of roots) required.push(root + '/SKILL.md', root + '/NOTICE.md');
   if (required.some(path => !ids.has(path.toLowerCase()))) fail('Required installed resource is unlisted');
   if (!Array.isArray(manifest.blocks) || manifest.blocks.length !== blockBlueprint().length) fail('Invalid managed block records');
-  for (const [index, { kind, path, bytes }] of blockBlueprint().entries()) {
+  for (const [index, { kind, path, bytes }] of blockBlueprint(manifest.state_document_paths,expectedVersion).entries()) {
     const entry = manifest.blocks[index];
     if (!exact(entry, ['path', 'kind', 'sha256']) || entry.path !== path || entry.kind !== kind || entry.sha256 !== sha256(bytes)) fail('Managed block identity differs from this runtime');
   }
   return manifest;
 }
-function readManifest(root) {
+function readManifest(root,diagnostic=false) {
   const bytes = readProjectFile(root, manifestPath); if (!bytes) return null;
   let data; try { data = JSON.parse(bytes.toString('utf8')); } catch { fail('Installation manifest is damaged'); }
-  return validateManifest(root, data);
+  return validateManifest(root, data,diagnostic);
 }
-function inventory(root) {
+export const readInstallationManifest=projectRoot=>readManifest(canonicalRoot(projectRoot));
+export const readDiagnosticInstallationManifest=projectRoot=>readManifest(canonicalRoot(projectRoot),true);
+export function prepareWorkflowProtection(projectRoot,paths,{read=path=>readProjectFile(projectRoot,path)}={}) {
+  const root=canonicalRoot(projectRoot);let manifest;try{manifest=JSON.parse(read(manifestPath));}catch{fail('Workflow state needs a known installation');}validateManifest(root,manifest);
+  const nextPaths=[...new Set([...manifest.state_document_paths,...validateStateDocumentPaths(paths)])].sort();
+  const next={...manifest,state_document_paths:nextPaths,blocks:blockRecords(nextPaths)};
+  validateManifest(root,next);
+  const before=read('.gitattributes'),old=createAttributesBlock(manifest.state_document_paths),block=createAttributesBlock(nextPaths);
+  const files=[];
+  if(!old.equals(block))files.push({path:'.gitattributes',kind:'attributes',before,after:replaceManagedBlock(before,'attributes',old,block)});
+  const image=Buffer.from(JSON.stringify(next,null,2)+'\n'),previous=read(manifestPath);
+  if(!previous.equals(image))files.push({path:manifestPath,kind:'file',before:previous,after:image});
+  return {files,manifest:next};
+}
+function inventory(root,issues=null) {
   const files = [];
-  function scan(path) {
+  const attempt=(path,fn)=>{try{return fn();}catch(error){if(!issues)throw error;issues.push({path,error});return null;}};
+  function scan(path) {return attempt(path,()=>{
     const absolute = projectPath(root, path), stat = fs.lstatSync(absolute, { throwIfNoEntry: false });
     if (!stat) return;
     if (!stat.isDirectory()) fail('Expected an installed resource directory: ' + path);
     for (const name of fs.readdirSync(absolute)) {
-      const child = path + '/' + name;
-      if (child === '.ai-workflow/.local') { projectPath(root, child); continue; }
+      const child = path + '/' + name;attempt(child,()=>{
+      if (child === '.ai-workflow/.local') { projectPath(root, child); return; }
       const file = projectPath(root, child), entry = fs.lstatSync(file);
-      if (entry.isDirectory()) scan(child); else if (entry.isFile()) { if (child !== manifestPath) files.push(child); } else fail('Non-regular installed resource');
+      if (entry.isDirectory()) scan(child); else if (entry.isFile()) { if (child !== manifestPath) files.push(child); } else fail('Non-regular installed resource');});
     }
-  }
+  });}
   scan('.ai-workflow'); for (const path of roots) scan(path); return files;
 }
-function inspect(root, manifest) {
-  const missing = [], changed = [];
+export function inspectInstallationResources(root, manifest) {
+  const missing = [], changed = [],issues=[];
   for (const entry of manifest.files) {
-    const bytes = readProjectFile(root, entry.path);
-    if (!bytes) missing.push(entry.path); else if (bytes.length !== entry.bytes || sha256(bytes) !== entry.sha256) changed.push(entry.path);
+    try{const bytes = readProjectFile(root, entry.path);
+    if (!bytes) missing.push(entry.path); else if (bytes.length !== entry.bytes || sha256(bytes) !== entry.sha256) changed.push(entry.path);}catch(error){issues.push({path:entry.path,error});}
   }
-  const expected = new Set(manifest.files.map(entry => entry.path)), extra = inventory(root).filter(path => !expected.has(path));
+  const expected = new Set(manifest.files.map(entry => entry.path)), extra = inventory(root,issues).filter(path => !expected.has(path));
   const missingBlocks = [];
   for (const entry of manifest.blocks) {
-    const bytes = readProjectFile(root, entry.path, 1024 * 1024), block = bytes && parseManagedBlock(bytes, entry.kind);
-    if (!block) missingBlocks.push(entry); else if (sha256(block.bytes) !== entry.sha256) changed.push(entry.path);
+    try{const bytes = readProjectFile(root, entry.path, 1024 * 1024), block = bytes && parseManagedBlock(bytes, entry.kind);
+    if (!block) missingBlocks.push(entry); else if (sha256(block.bytes) !== entry.sha256) changed.push(entry.path);}catch(error){issues.push({path:entry.path,error});}
   }
+  return {missing,changed,extra,missingBlocks,issues};
+}
+function inspect(root, manifest) {
+  const {missing,changed,extra,missingBlocks,issues}=inspectInstallationResources(root,manifest);if(issues.length)throw issues[0].error;
   const stateBytes = readProjectFile(root, 'docs/workflow/state.yaml');
   if (!stateBytes) fail('Existing project state is missing; init cannot reset progress', 'INCOMPLETE');
   let state; try { state = validateStateYaml(stateBytes.toString('utf8')); } catch { fail('Existing project state is invalid; state recovery is a separate task', 'INCOMPLETE'); }
@@ -108,19 +138,22 @@ function inspect(root, manifest) {
     if (!stat?.isDirectory()) fail('Current iteration is missing', 'INCOMPLETE');
   }
   if (!missing.length && !changed.length) {
-    let schema, pkg, nav, templateLayout;
+    let schema, pkg, nav, templateLayout,records;
     try { schema = JSON.parse(readProjectFile(root, '.ai-workflow/resources/schemas/state-v1.schema.json')); pkg = JSON.parse(readProjectFile(root, '.ai-workflow/package.json')); nav = JSON.parse(readProjectFile(root, '.ai-workflow/resources/templates/navigation.json')); templateLayout = JSON.parse(readProjectFile(root, '.ai-workflow/resources/templates/manifest.json')); } catch { fail('Installed schema or package metadata is invalid'); }
     if (!isDeepStrictEqual(schema, stateSchema) || !isDeepStrictEqual(nav, navigation) || !isDeepStrictEqual(templateLayout, layout) || pkg.name !== metadata.name || pkg.version !== metadata.version || pkg.license !== metadata.license || !exact(pkg.bin, [metadata.name]) || pkg.bin[metadata.name] !== 'bin/iterlane.mjs') fail('Installed metadata differs from this runtime');
+    try{records=JSON.parse(readProjectFile(root,'.ai-workflow/resources/schemas/workflow-record-v1.schema.json'));}catch{fail('Installed record schema is invalid');}if(!isDeepStrictEqual(records,recordSchema))fail('Installed record schema differs from this runtime');
+    let records2;try{records2=JSON.parse(readProjectFile(root,'.ai-workflow/resources/schemas/workflow-record-v2.schema.json'));}catch{fail('Installed v2 record schema is invalid');}if(!isDeepStrictEqual(records2,recordSchema2))fail('Installed v2 record schema differs from this runtime');
   }
   return { missing, changed, extra, missingBlocks, state };
 }
-export function checkInstallation(projectRoot) {
-  const root = canonicalRoot(projectRoot); assertNoPendingOperation(root);
+export function checkInstallation(projectRoot,{allowPendingWorkflow=false}={}) {
+  const root = canonicalRoot(projectRoot); if(!allowPendingWorkflow)assertNoPendingOperation(root);
   const manifest = readManifest(root); if (!manifest) fail('No installation manifest', 'INCOMPLETE');
   const result = inspect(root, manifest);
   if (result.changed.length || result.extra.length) fail('Installed resources changed or contain unlisted files');
   if (result.missing.length || result.missingBlocks.length) fail('Installed resources or navigation are missing', 'INCOMPLETE');
-  return { name: metadata.name, version: metadata.version, resources: 'valid', managed_files: manifest.files.length, state: 'structure_valid', state_revision: result.state.revision, references_verified: false, acceptance_verified: false, client_validation: 'not_run' };
+  const skills=inspectSkillResources(root,{installed:true});if(!skills.valid)throw new WorkflowError('PACKAGE_INVALID','Installed skill dependencies or common references are inconsistent',skills.issues);
+  return { name: metadata.name, version: metadata.version, resources: 'valid', managed_files: manifest.files.length, state: 'structure_valid', state_revision: result.state.revision, references_verified: false, acceptance_verified: false, client_validation: 'not_run',skills };
 }
 
 function stateBytes(createdAt, business) {
@@ -146,7 +179,7 @@ export function planInstallation({ packageRoot, projectRoot, mode = 'init' }) {
       return { ...file, before: null };
     });
     for (const entry of inspection.missingBlocks) {
-      const before = readProjectFile(root, entry.path, 1024 * 1024), block = blockBlueprint().find(block => block.kind === entry.kind).bytes;
+      const before = readProjectFile(root, entry.path, 1024 * 1024), block = blockBlueprint(existing.state_document_paths).find(block => block.kind === entry.kind).bytes;
       files.push({ path: entry.path, kind: entry.kind, before, after: replaceManagedBlock(before, entry.kind, null, block) });
     }
     manifest = existing;
@@ -166,7 +199,7 @@ export function planInstallation({ packageRoot, projectRoot, mode = 'init' }) {
     business.push({ path: 'docs/workflow/state.yaml', kind: 'file', before: null, after: stateBytes(createdAt, business) });
     for (const file of business) if (readProjectFile(root, file.path) !== null) fail('Business target already exists: ' + file.path);
     files.push(...business);
-    manifest = { manifest_version: 1, kind: 'iterlane-project-installation', installation_id: installationId, package: source.package, skill_roots: roots, files: source.files.map(file => ({ path: file.path, bytes: file.after.length, sha256: sha256(file.after) })), blocks: blockRecords() };
+    manifest = { manifest_version: 2, kind: 'iterlane-project-installation', installation_id: installationId, package: source.package, skill_roots: roots, files: source.files.map(file => ({ path: file.path, bytes: file.after.length, sha256: sha256(file.after) })), blocks: blockRecords(),state_document_paths:initialBasisPaths };
   }
   validateManifest(root, manifest);
   files.push({ path: manifestPath, kind: 'file', before: readProjectFile(root, manifestPath), after: Buffer.from(JSON.stringify(manifest, null, 2) + '\n') });
@@ -182,7 +215,9 @@ export function initializeProject(options) {
     if (isWithin(root, fs.realpathSync.native(options.packageRoot)) || isWithin(fs.realpathSync.native(options.packageRoot), root)) fail('Package and project directories must not overlap');
     const prepare = journal => {
       if (!isDeepStrictEqual(journal.package, source.package)) fail('Recovery requires the identical source package');
-      const manifest = { manifest_version: 1, kind: 'iterlane-project-installation', installation_id: journal.installation_id, package: source.package, skill_roots: roots, files: source.files.map(file => ({ path: file.path, bytes: file.after.length, sha256: sha256(file.after) })), blocks: blockRecords() };
+      let protectionPaths=initialBasisPaths;
+      if(journal.action==='repaired'){let original;try{original=JSON.parse(decode(journal.files.at(-1).before));}catch{fail('Repair original manifest is invalid');}validateManifest(root,original);protectionPaths=original.state_document_paths;}
+      const manifest = { manifest_version: 2, kind: 'iterlane-project-installation', installation_id: journal.installation_id, package: source.package, skill_roots: roots, files: source.files.map(file => ({ path: file.path, bytes: file.after.length, sha256: sha256(file.after) })), blocks: blockRecords(protectionPaths),state_document_paths:protectionPaths };
       const expected = new Map(source.files.map(file => [file.path, file.after]));
       if (journal.action === 'initialized') {
         const business = [...layout.empty_files, ...layout.directory_placeholders].map(path => ({ path, after: fs.readFileSync(join(options.packageRoot, 'resources/templates/project', path)) }));
@@ -202,7 +237,7 @@ export function initializeProject(options) {
             if (!isDeepStrictEqual(validateManifest(root, original), manifest)) fail('Repair cannot change installation identity');
           }
         } else if (blockBlueprint().some(block => block.path === entry.path)) {
-          const { kind, bytes: block } = blockBlueprint().find(block => block.path === entry.path);
+          const { kind, bytes: block } = blockBlueprint(protectionPaths).find(block => block.path === entry.path);
           if (entry.kind !== kind || parseManagedBlock(before || Buffer.alloc(0), kind) !== null || !equalBytes(parseManagedBlock(after, kind)?.bytes || null, block) || !equalBytes(replaceManagedBlock(before, kind, null, block), after)) fail('Recovery block is outside its authorized change');
         } else if (entry.kind !== 'file' || before !== null || !expected.has(entry.path) || !equalBytes(after, expected.get(entry.path))) fail('Recovery payload differs from its original source');
       }
@@ -213,7 +248,7 @@ export function initializeProject(options) {
       return { verify: () => { const result = inspect(root, manifest); if (result.missing.length || result.changed.length || result.extra.length || result.missingBlocks.length) fail('Recovery resource readback failed', 'INCOMPLETE'); } };
     };
     const result = recoverInstallation(root, options.mode, prepare, options);
-    if (options.mode === 'resume') checkInstallation(root);
+    if (options.mode === 'resume'&&!options.preview) checkInstallation(root);
     return result;
   }
   const plan = planInstallation(options);

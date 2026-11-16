@@ -1,5 +1,10 @@
 # 业务项目文档管理
 
+<a id="第0步状态结构与转换"></a>
+<a id="state-v1字段建议"></a>
+<a id="状态转换规则建议"></a>
+<a id="第4步状态与文档运行工具d120"></a>
+
 本页说明**资料放哪里、何时更新、写入中断后怎样恢复**。开发顺序见[开发流程](workflow.md)，确认依据见[决策记录](../decisions.md)。
 
 ## 文档结构
@@ -51,6 +56,8 @@
 
 ## 各文件职责
 
+v2机器增量保存在scope.md的spec_delta记录，同步收据保存在verification.md的spec_sync记录，tasks.md仍是唯一任务表；不另建业务delta目录或平行报告。格式和写入边界见[规格契约](spec-format.md#规格机器契约与同步)。
+
 | 文件或目录 | 保存什么 |
 | --- | --- |
 | `overview.md` | 当前项目方向、目标用户与范围 |
@@ -69,9 +76,9 @@
 | `state.yaml` | 当前工作、阶段、确认和任务引用等轻量导航 |
 | `releases/` | 实际发布内容、版本、产物和环境结果 |
 
-`state.yaml` 不积累完整需求、任务或验证历史，可能过时，必须回读实际资料。D110已确认建立正式结构和受校验的状态写入，D111已认可下面的具体设计；D112第1步已建立正式schema与只读结构校验，现有Skills尚未接入状态写入，业务状态模板未改。
+`state.yaml` 是当前工作的书签，不积累完整需求、任务或验证历史。恢复时回读实际资料，由受校验工具更新；不能单凭书签判断工作或验收已完成。
 
-## 第0步：状态结构与转换
+## 状态结构与转换
 
 ### 三种事实分别存放
 
@@ -81,13 +88,13 @@
 | 工作停在哪里 | `docs/workflow/state.yaml`是当前迭代、任务、阶段和阻塞的轻量书签，由受校验工具更新 | state写着完成不等于真实证据满足；不能从旧书签发明下一任务 |
 | 目标、进度与验收依据 | 既有scope/design/tasks/verification、specs及发布记录；主Agent统一维护、引用用户确认和实际结果 | AI检查通过不等于用户验收，历史验收不自动适用于后来修改的内容 |
 
-继续使用Markdown保存任务和证据，避免再造一套并行任务数据库。建议在既有文档中为任务和关键记录增加稳定标识及最小结构化记录块；只规范需要程序引用的部分，不强制把整个正文转为数据。标识样式、记录块标记及解析细节在本设计确认后的实施计划中明确；不存在的标识不得由状态恢复器猜造。
+任务和证据仍保存在Markdown中，只有需要程序引用的部分使用稳定ID和结构化记录块。记录格式见下面的接口说明；恢复器不猜造不存在的标识。
 
-### state v1字段建议
+### state v1字段
 
-以下字段名和枚举随D111具体设计获认可。第1步正式实现见[JSON Schema](../../schemas/state-v1.schema.json)与`src/state.mjs`；只校验结构和安全相对路径，不核验引用文件/记录是否存在、摘要是否匹配或确认是否真实。状态转换和受校验写入仍为后续实现，schema通过不表示用户验收。
+状态字段见[JSON Schema](../../schemas/state-v1.schema.json)和`src/state.mjs`。`validate`检查结构与安全路径；`status`和文档检查进一步核对引用、摘要及位置。格式通过不认证真实批准。
 
-| 字段 | 类型/建议值 | 职责及约束 |
+| 字段 | 类型/取值 | 职责及约束 |
 | --- | --- | --- |
 | `schema_version` | 整数，首版1 | 表达状态数据格式，不等同于框架包版本；不支持的值拒绝写入，不自动改号 |
 | `revision` | 从0开始的非负整数 | 每次成功变更加1；写入必须提供期望旧值，旧值不符即冲突；恢复也不倒退revision |
@@ -108,7 +115,7 @@
 
 `current_iteration=null`时任务与phase必须为null，不允许running；需要执行或验收具体任务时任务引用必须存在。blocked需要阻塞依据，paused需要断点依据。已验收但尚未收尾，用`phase=closeout`、`status=ready/running/blocked`及有效验收引用表示，不提前写completed。
 
-### 状态转换规则建议
+### 状态转换规则
 
 | 转换 | 必须满足的依据 |
 | --- | --- |
@@ -139,7 +146,63 @@ phase不是强制所有请求从头走一遍的线性流水线；独立审查、
 - tasks/verification等被人工修改后，basis不符则报告过时。获准恢复时读取实际资料、保留原验收事实，唯一可确定才生成新revision；歧义保持阻塞。
 - 不支持的schema、重复字段、损坏YAML、旧revision或未完成写入日志均禁止继续状态变更；原文件和恢复依据保留。
 - 仅本框架工具通过项目写锁协作；外部直接编辑仍可能发生，需要前后摘要核对。多个worktree和Git合并冲突按既有Git规则处理，不宣称此处已实现多Agent调度或跨目录事务。
-- 第1步实现字段、安全相对路径与无损整数校验；第2步初始化生成有效书签、检查引用文件最低存在性，模板已改为state v1结构示例。通用转换、记录ID/确认真伪、basis新鲜度、进度写入与恢复仍待实施，不能从初始化或结构通过推定整套状态运行时生效。
+- 状态转换、引用、摘要新鲜度与写入恢复由运行工具检查；实际批准及检查来源仍由主Agent核对。
+
+## 状态与文档运行工具
+
+下面介绍基础v1记录和状态接口，v2需求增量及同步字段见[规格契约](spec-format.md)，验证政策见[任务轻重](workflow.md#任务轻重与加载方式)。状态仍为v1，不自动迁移旧项目或业务资料。
+
+### 接口与记录
+
+- `status --project <dir> --json`：只读返回声明状态、实际任务/记录引用、basis新鲜度、必要文档与资源/未完成写入问题、能否安全接续。存在问题时诊断不写state；不把声明状态或source.role当真人确认认证。
+- `check --project <dir> --documents --json`：在资源检查外核对记录ID、当前任务、普通行内Markdown本地链接和识别到的规格需求编号。空白初始业务文档合法；阶段推进另外核对当时必需资料。
+- `transition --project <dir> --input <json> --json`：输入含`operation_version=1`、`expected_revision`及语义action；支持`record/prepare/start/verify/await/confirm/closeout/complete/block/pause/resume/refresh/select`。没有通用set-state或任意指定completed入口。
+- `transition --project <dir> --resume|--undo --expected-revision <n> --json`：仅处理本轮状态/文档写入的未完成操作；不执行Git、部署或数据库补偿。
+
+沿既有`tasks.md`和`verification.md`使用独立标记块，正文保持中文Markdown。例如`<!-- iterlane:record T1 -->`、一段严格JSON围栏、`<!-- /iterlane:record T1 -->`。ID与JSON内id必须一致，文件内唯一；普通代码示例中的标记不当运行记录。文档解析支持本版本声明的普通标题、围栏和行内链接，不宣称任意Markdown解析器。
+
+记录共同字段为`record_version/id/kind/iteration/task/source/data`。source声明role（user/assistant/tool）、可定位reference及相关原文text；检查类型、来源声明、对象及内容绑定，仍由实际交互和主Agent核对确认来源。工具输出`acceptance_verified=false`等真实性限制，不提供新的宿主签名或权限沙箱。
+
+| kind | data及存放约束 |
+| --- | --- |
+| task | tasks中声明title、工作phase（build/execute/release/maintenance）、depends_on与requirements；工具管理当前任务的progress，声明接口不得注入已完成progress |
+| confirmation | verification中记录purpose（scope/design/plan/task_acceptance/operation_authorization/retry_decision/pause）、approved/rejected结果、对象artifacts及明确supersedes引用；来源须声明user，AI检查记录不能替代 |
+| check/review | verification中记录实际结果、命令/证据或独立上下文来源、未关闭必修项及artifacts；格式/摘要通过不声称独立执行过检查或认证审查身份 |
+| checkpoint/progress | 工具生成的暂停前位置/等待/阻塞/引用与转换事件；不允许通过普通record操作自造已完成状态 |
+| blocker/resolution | verification中记录原因、解除条件、对应阻塞及解除证据；解除记录不能改变原等待验收事实 |
+| closeout | verification中记录规格同步或无需同步的理由、适用Git收尾依据及完成结果；工具不执行Git收尾 |
+
+任务进度以tasks中的结构化记录为主，state只复制当前任务的必要位置。旧普通文字不会猜解为稳定任务ID或程序可验证批准；尚无任务记录的初始澄清仍可使用工具。
+
+### 内容与依据
+
+artifacts支持：原文件路径/SHA-256；文档definition摘要（正文及任务定义，排除工具运行记录与progress）；指定Git提交与明确文件/目录范围。definition与原文件摘要是不同域，不能用它代替basis的原字节SHA。工具改变progress或追加运行记录不使同一任务定义的确认自动失效；真实定义/代码变化则重新核对对应确认。
+
+Git依据仅只读核对已有提交和声明范围，关闭可选锁、外部diff/textconv及fsmonitor；发现自定义filter/working-tree-encoding时不盲目调用转换器，报告证据不支持。文件范围内新未跟踪内容、改动或错误提交不匹配。无Git时可按原设计使用明确文件清单/SHA，不伪造Git结果。
+
+当前确认引用须匹配purpose、迭代/任务与成果对象。同一对象存在未明确取代的相反确认时停止，不能凭时间戳挑一条。历史已验收成果保留；新任务的合法变更不自动把已完成历史任务改成失败，但当前成果的收尾不得借用旧内容版本批准。
+
+scope/design/plan确认分别覆盖当前轮scope/design/tasks文档；task_acceptance精确绑定当前任务，轮级null确认仅用于适用阶段确认。pause、selection及收尾重验授权同样校验相反确认与supersedes。引用检查遍历任务依赖、确认取代与解除阻塞引用，拒绝缺失、错误kind及循环，不按目录编号推断依赖。
+
+status回读当前轮四项工作资料及overview，核对task.progress、记录引用、schema和所有basis原字节。有效但过时的书签只诊断；refresh只有当前位置与记录一致、依据无矛盾时重新绑定basis并增revision，不更换任务/阶段、不抹历史验收。损坏state或无法唯一核实的位置不自动重建。
+
+### 合法转换与恢复
+
+prepare/select明确指定实际迭代及任务，不选择最大目录。澄清不要求已有方案；plan须具备scope/design确认，build/execute须有scope/design/plan确认和已完成依赖。当前未验收任务不得直接切到下一任务；明确暂停另行保存原位置后才可按有效选择依据切换。
+
+start从ready进入running；verify从build/execute/release/maintenance的running进入检查，收尾重验还须当前ready/running及适用授权；await(task_acceptance)须有适用的检查/独立审查记录、必修项关闭和内容版本依据；confirm(task_acceptance)仅从真实待验收位置进入closeout。closeout开始及complete核对验收版本、规格/Git收尾记录；不能在awaiting_user直接complete。独立调用保持相应必要前置，不要求全部阶段从头走一遍。
+
+pause/block保存原phase、status、waiting_for及引用到checkpoint。resume或select恢复暂停任务时重新核对原阶段条件；blocked只能通过具备解除证据的resume恢复，普通await或收尾重验不能绕过。原先awaiting_user仍恢复同一等待，不自动执行任务或重试部署。重入相同操作不重复写；revision必须精确匹配，溢出或未知revision拒绝。
+
+### 写入与Git字节保护
+
+抽出已验证的单项目锁和持久化替换原语供安装与状态工具共用。状态操作日志放`.ai-workflow/.local/workflow-operations/`，安装日志位置保持；两个命名空间均阻止另一个工具越过未完成写入。有效日志前失败停止，不能猜造可恢复归属。
+
+日志保存语义输入、读依赖摘要、各目标前后像/摘要、操作ID/时间、步骤与nonce/PID锁。取得共锁后规划，并在任何目标写入前完整核对读依赖和前像，再持久化日志、更新受控tasks/verification、必要attributes/manifest，最后原子更新state并标记提交。每次替换前后重验；外部文档修改不覆盖，未知临时文件/锁保留。恢复重放须重新从前像验证同一语义计划，不能信任被改成completed的后像。已提交日志后进程退出遗留的匹配锁可通过resume核验并清理，不重做操作或增加revision；仍存活或未知所有者拒绝。
+
+resume只完成同一计划；undo只还原匹配的受管理变化，并以新的revision表达恢复后的书签。state已写到n时undo至少写n+1，未写state时也不倒退已核实的revision。无法核实原文件/版本时拒绝。重试undo继续同一恢复，不能误转回apply；部分还原及后续用户修改均保留。
+
+安装manifest增加受控`state_document_paths`，attributes由固定框架范围和这些精确docs路径计算；状态工具把当前basis/记录所需docs路径纳入同一日志更新。不扩大到整个docs或业务代码，不削弱原文件摘要。旧版本拒绝混用，兼容迁移属于第6步。
 
 ## 开轮与项目方向维护
 
@@ -198,7 +261,7 @@ phase不是强制所有请求从头走一遍的线性流水线；独立审查、
 - 按完整成果记录任务，技术子步骤完成不等于成果通过验收。
 - 任务成果、验收安排或交付顺序调整，保留确认与原因。
 
-`verification.md` 可保存详细发现、核验、修复、重验与复查依据；对话不逐轮抛回技术意见清单。具体记录格式、任务关联字段及无迭代时的正式归属仍待细化。
+`verification.md` 可保存详细发现、核验、修复、重验与复查依据；对话不逐轮抛回技术意见清单。受管记录格式和任务关联字段由workflow-record schema及规格契约定义；无适用迭代时仍在对话交付。
 
 ### Git、发布与升级记录
 

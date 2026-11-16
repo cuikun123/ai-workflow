@@ -1,0 +1,1 @@
+export const skillNames=Object.freeze(['build-foundation','clarify-design','debug-issue','discuss-design','execute-task','handle-incident','plan-tasks','release-work','review-work','test-work','workflow-guide']);

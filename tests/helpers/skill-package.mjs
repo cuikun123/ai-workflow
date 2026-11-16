@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync, cpSync, mkdtempSync, readdirSync, lstatSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, lstatSync } from 'node:fs';
 import { resolve, dirname, join, relative } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
+import {renderSingleSkill} from '../../src/skill-bundles.mjs';
 
 export function assertSkillPackageStructure(root) {
   const stat = lstatSync(root);
@@ -42,7 +43,8 @@ test(`${skillName}: portable local resources`, () => {
   assert.ok(existsSync(join(source, 'SKILL.md')), 'The skill entrypoint must exist');
   const project = mkdtempSync(join(tmpdir(), 'ai-workflow-skill-package-'));
   const installed = join(project, '.agents/skills', skillName);
-  cpSync(source, installed, { recursive: true, errorOnExist: true, force: false });
+  mkdirSync(dirname(installed),{recursive:true});
+  renderSingleSkill(dirname(source),skillName,installed);
   let visited = 0;
   function visit(folder) {
     for (const entry of readdirSync(folder, { withFileTypes: true })) {

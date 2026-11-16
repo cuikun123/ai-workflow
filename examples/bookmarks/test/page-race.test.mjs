@@ -1,0 +1,18 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';
+test('real page script: older initial read cannot erase a newly saved bookmark or success message',async()=>{
+  const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1],pending=[],handlers={};
+  const node=()=>({value:'',textContent:'',hidden:false,disabled:false,children:[],append(...v){this.children.push(...v);},replaceChildren(){this.children=[];},focus(){}}),nodes=Object.fromEntries(['bookmark-form','title','url','status','empty','bookmarks'].map(id=>[id,node()])),button=node();nodes['bookmark-form'].querySelector=()=>button;nodes['bookmark-form'].addEventListener=(event,handler)=>handlers[event]=handler;nodes['bookmark-form'].reset=()=>{nodes.title.value='';nodes.url.value='';};
+  const context=vm.createContext({document:{getElementById:id=>nodes[id],createElement:()=>node()},fetch:(url,options)=>new Promise(resolve=>pending.push({url,options,resolve})),console});vm.runInContext(source,context);assert.equal(pending.length,1);
+  const settle=async(call,data)=>{call.resolve({ok:true,json:async()=>data});for(let i=0;i<8;i++)await Promise.resolve();};
+  nodes.title.value='Saved';nodes.url.value='https://example.com';const submitted=handlers.submit({preventDefault(){}});assert.equal(pending.length,2);await settle(pending[1],{title:'Saved',url:'https://example.com'});assert.equal(pending.length,3);await settle(pending[2],[{title:'Saved',url:'https://example.com'}]);await submitted;assert.equal(nodes.bookmarks.children.length,1);const success=nodes.status.textContent;assert.ok(success.length>0);
+  await settle(pending[0],[]);assert.equal(nodes.bookmarks.children.length,1);assert.equal(nodes.status.textContent,success);assert.equal(nodes.empty.hidden,true);
+});
+
+test('real page script: old initial read cannot erase in-flight save status',async()=>{
+  const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1],pending=[],handlers={};
+  const node=()=>({value:'',textContent:'',hidden:false,disabled:false,children:[],append(...v){this.children.push(...v);},replaceChildren(){this.children=[];},focus(){}}),nodes=Object.fromEntries(['bookmark-form','title','url','status','empty','bookmarks'].map(id=>[id,node()])),button=node();nodes['bookmark-form'].querySelector=()=>button;nodes['bookmark-form'].addEventListener=(event,handler)=>handlers[event]=handler;nodes['bookmark-form'].reset=()=>{nodes.title.value='';nodes.url.value='';};
+  const context=vm.createContext({document:{getElementById:id=>nodes[id],createElement:()=>node()},fetch:(url,options)=>new Promise(resolve=>pending.push({url,options,resolve})),console});vm.runInContext(source,context);assert.equal(pending.length,1);
+  const settle=async(call,data)=>{call.resolve({ok:true,json:async()=>data});for(let i=0;i<8;i++)await Promise.resolve();};
+  nodes.title.value='Saved';nodes.url.value='https://example.com';const submitted=handlers.submit({preventDefault(){}});assert.equal(pending.length,2);const saving=nodes.status.textContent;await settle(pending[0],[]);assert.equal(nodes.status.textContent,saving);assert.equal(button.disabled,true);await settle(pending[1],{title:'Saved',url:'https://example.com'});assert.equal(pending.length,3);await settle(pending[2],[{title:'Saved',url:'https://example.com'}]);await submitted;assert.equal(nodes.bookmarks.children.length,1);const success=nodes.status.textContent;assert.ok(success.length>0);
+  await settle(pending[0],[]);assert.equal(nodes.bookmarks.children.length,1);assert.equal(nodes.status.textContent,success);assert.equal(nodes.empty.hidden,true);
+});

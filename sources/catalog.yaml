@@ -4,11 +4,23 @@ sources:
   - id: openspec
     repository: https://github.com/Fission-AI/OpenSpec
     reference_checkout_commit: "56ef0ac1fd2270e88d276b40da9f23ec0f9c6e96"
-    adoption_status: not_integrated
-    adopted_version: null
-    license_review: root_license_read_dependencies_pending
+    adoption_status: selected_parser_methods_adapted_no_upstream_runtime
+    adopted_version: "0fa4a9705c20ef1c571fe3ded74435733e4b73a1"
+    license_review: selected_methods_and_complete_MIT_reviewed_upstream_dependencies_excluded
     research_snapshot_commit: "0fa4a9705c20ef1c571fe3ded74435733e4b73a1"
     research_notes: docs/design/capability-reuse.md
+    adopted_files:
+      - src/core/parsers/code-fence.ts
+      - src/core/parsers/requirement-blocks.ts
+      - src/core/parsers/spec-structure.ts
+    local_adaptations:
+      - src/spec-docs.mjs
+      - src/spec-deltas.mjs
+      - src/workflow-docs.mjs
+    attribution: sources/openspec-NOTICE.md
+    runtime_dependencies_added: []
+    filesystem_behavior: read_only_no_upstream_writer
+    verification_reference: tests/runtime/spec-docs.test.mjs
     candidate_topics:
       - current_specs_and_change_history
       - requirements_and_scenarios
@@ -19,6 +31,7 @@ sources:
     adoption_status: partially_adapted
     adopted_version: "22f0b463e7a5e579904dd6211a520321035526f7"
     adopted_files:
+      - skills/using-superpowers/SKILL.md
       - skills/writing-plans/SKILL.md
       - skills/executing-plans/SKILL.md
       - skills/subagent-driven-development/SKILL.md
@@ -39,6 +52,7 @@ sources:
     adopted_scope: selected_framework_methods_only_no_upstream_scripts_or_runtime
     adapted_skills:
       - skills/plan-tasks/SKILL.md
+      - skills/workflow-guide/SKILL.md
       - skills/execute-task/SKILL.md
       - skills/review-work/SKILL.md
       - skills/debug-issue/SKILL.md

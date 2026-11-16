@@ -54,3 +54,12 @@ for any other purpose. See [TRADEMARK.md](TRADEMARK.md) for detailed guidelines.
 ```
 
 署名：[CONTRIBUTORS](https://github.com/bmad-code-org/BMAD-METHOD/blob/a867e1604b365d48ea03cbd109da1066ba0c84bc/CONTRIBUTORS.md)；商标：[TRADEMARK](https://github.com/bmad-code-org/BMAD-METHOD/blob/a867e1604b365d48ea03cbd109da1066ba0c84bc/TRADEMARK.md)。完整许可保留贡献者与商标条款，不冒充官方。
+
+## 0.3.0：U3结构与工具接入
+
+本包将入口与条件方法分层，共同规则在源码_shared单一维护，由构建复制到包内references/common并校验摘要；新任务使用完整Iterlane的v2记录/规格工具。方法可独立携带，运行功能依赖完整固定安装，不包含独立调度器。以上来源和许可原文保留为历史，不因本轮重构新增外部执行权限；本段说明当前包版本与资源布局。
+
+
+## 0.3.1修订
+
+按D135接入任务轻重、条件读取与按能力交接，保留原方法职责和全部许可；验证政策采用实际命令/观察及明确审查方式，不照搬“稍有关联即强制调用”的触发。

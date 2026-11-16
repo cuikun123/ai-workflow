@@ -1,3 +1,6 @@
+import {equalBytes,durableWrite,takeNewLock,releaseLock} from './project-writes.mjs';
+import {assertNoPendingWorkflow} from './workflow-log.mjs';
+import {validateVersionJournal,assertNoPendingVersions} from './version-log.mjs';
 import * as fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { projectPath, readProjectFile, ensureProjectDirectory, ensureParent } from './project-paths.mjs';
@@ -10,17 +13,18 @@ import { skillNames, sha256 } from './package.mjs';
 const local = '.ai-workflow/.local', lockPath = local + '/write.lock';
 export const encode = value => value === null ? null : value.toString('base64');
 export const decode = value => value === null ? null : Buffer.from(value, 'base64');
-export const equalBytes = (a, b) => a === null || b === null ? a === b : a.equals(b);
+export {equalBytes} from './project-writes.mjs';
 const incomplete = message => { throw new WorkflowError('INCOMPLETE', message); };
 const exact = (obj, keys) => obj && typeof obj === 'object' && !Array.isArray(obj) && Object.keys(obj).sort().join(',') === [...keys].sort().join(',');
 const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value);
 function validTarget(path) {
   return typeof path === 'string' && ((path.startsWith('.ai-workflow/') && !path.startsWith(local + '/')) || skillNames.some(name => path.startsWith('.agents/skills/' + name + '/')) || ['AGENTS.md', '.gitignore', '.gitattributes', 'docs/workflow/state.yaml', ...layout.empty_files, ...layout.directory_placeholders].includes(path));
 }
-function validateJournal(root, data) {
+export function validateInstallationJournal(root,data,expectedVersion=metadata.version){return validateJournal(root,data,expectedVersion);}
+function validateJournal(root, data,expectedVersion=metadata.version) {
   if (!exact(data, ['journal_version', 'operation_id', 'project_root', 'nonce', 'package', 'installation_id', 'action', 'created_at', 'phase', 'intent', 'created_dirs', 'files', 'temporary']) || data.journal_version !== 1 || !uuid(data.operation_id) || !uuid(data.nonce) || !uuid(data.installation_id) || data.project_root !== root || !['initialized', 'repaired'].includes(data.action) || !['apply', 'undo'].includes(data.intent) || !['prepared', 'applying', 'blocked', 'committed', 'rolled_back'].includes(data.phase)) incomplete('Unknown or inconsistent operation journal');
   const pkg = data.package;
-  if (!exact(pkg, ['name', 'version', 'source_manifest_sha256', 'state_schemas']) || pkg.name !== metadata.name || pkg.version !== metadata.version || typeof pkg.source_manifest_sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(pkg.source_manifest_sha256) || JSON.stringify(pkg.state_schemas) !== '[1]') incomplete('Journal belongs to an unsupported package');
+  if (!exact(pkg, ['name', 'version', 'source_manifest_sha256', 'state_schemas']) || pkg.name !== metadata.name || pkg.version !== expectedVersion || typeof pkg.source_manifest_sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(pkg.source_manifest_sha256) || JSON.stringify(pkg.state_schemas) !== '[1]') incomplete('Journal belongs to an unsupported package');
   if (typeof data.created_at !== 'string' || !Number.isFinite(Date.parse(data.created_at)) || new Date(data.created_at).toISOString() !== data.created_at) incomplete('Invalid journal timestamp');
   if (!Array.isArray(data.files) || !data.files.length || data.files.length > 10000 || !Array.isArray(data.created_dirs) || data.created_dirs.length > 10000) incomplete('Invalid journal inventory');
   const paths = new Set();
@@ -45,50 +49,30 @@ function validateJournal(root, data) {
   }
   return data;
 }
-export function scanOperations(root) {
+export function scanOperations(root,{onError}={}) {
   const dir = projectPath(root, local + '/operations'), stat = fs.lstatSync(dir, { throwIfNoEntry: false });
   if (!stat) return [];
   if (!stat.isDirectory()) incomplete('Operation history is not a real directory');
   return fs.readdirSync(dir).map(id => {
+    const safePath=uuid(id)?local+'/operations/'+id+'/journal.json':local+'/operations';try{
     if (!uuid(id)) incomplete('Unknown operation entry');
-    const path = local + '/operations/' + id + '/journal.json', bytes = readProjectFile(root, path);
+    const path = local + '/operations/' + id + '/journal.json', bytes = readProjectFile(root, path,64*1024*1024);
     if (!bytes) incomplete('Operation metadata was interrupted before a valid journal');
     let data; try { data = JSON.parse(bytes.toString('utf8')); } catch { incomplete('Operation journal is damaged'); }
+    if(data.journal_version===2&&data.kind==='framework-version'){validateVersionJournal(root,data);return null;}
+    if(bytes.length>8*1024*1024)incomplete('Installation journal exceeds supported size');
     validateJournal(root, data); if (data.operation_id !== id) incomplete('Operation identity does not match its directory');
     return { path, bytes, data };
-  });
+    }catch(error){if(!onError)throw error;onError(error,safePath);return null;}
+  }).filter(Boolean);
 }
 export function assertNoPendingOperation(root) {
+  assertNoPendingVersions(root);
   if (readProjectFile(root, lockPath) !== null) incomplete('Project write lock is present; inspect or explicitly resume the operation');
   if (scanOperations(root).some(op => !['committed', 'rolled_back'].includes(op.data.phase))) incomplete('An initialization operation is incomplete; use explicit resume or undo');
+  assertNoPendingWorkflow(root);
 }
 
-function durableWrite(root, path, bytes, before, io, created, registeredTemporary = null) {
-  ensureParent(root, path, io, created);
-  if (!equalBytes(readProjectFile(root, path), before)) throw new WorkflowError('CONFLICT', 'File changed before write: ' + path);
-  const temporary = registeredTemporary || path + '.tmp-' + randomUUID(), absolute = projectPath(root, temporary);
-  let fd, ownTemporary = false;
-  try {
-    fd = io.openSync(absolute, 'wx', 0o600); ownTemporary = true; io.writeFileSync(fd, bytes); io.fsyncSync(fd); io.closeSync(fd); fd = undefined;
-    if (!equalBytes(readProjectFile(root, temporary), bytes) || !equalBytes(readProjectFile(root, path), before)) throw new WorkflowError('CONFLICT', 'File changed during preparation: ' + path);
-    io.renameSync(absolute, projectPath(root, path));
-    if (!equalBytes(readProjectFile(root, path), bytes)) throw new WorkflowError('IO', 'Written file failed readback: ' + path);
-  } finally {
-    if (fd !== undefined) io.closeSync(fd);
-    try { if (ownTemporary && equalBytes(readProjectFile(root, temporary), bytes)) io.unlinkSync(projectPath(root, temporary)); } catch { /* Keep uncertain temporary content. */ }
-  }
-}
-
-function takeNewLock(root, operationId, io, created, nonce = randomUUID()) {
-  ensureProjectDirectory(root, local, io, created);
-  const owner = { lock_version: 1, operation_id: operationId, nonce, pid: process.pid, project_root: root, created_at: new Date().toISOString() };
-  const bytes = Buffer.from(JSON.stringify(owner)), path = projectPath(root, lockPath);
-  let fd;
-  try { fd = io.openSync(path, 'wx', 0o600); io.writeFileSync(fd, bytes); io.fsyncSync(fd); }
-  catch (error) { if (error.code === 'EEXIST') incomplete('Another writer holds the project lock'); throw error; }
-  finally { if (fd !== undefined) io.closeSync(fd); }
-  return { owner, bytes };
-}
 function registerTemporary(journal, entry, bytes) {
   journal.temporary = { target: entry.path, path: entry.path + '.tmp-' + journal.operation_id, data: encode(bytes), bytes: bytes.length, sha256: sha256(bytes) };
   return journal.temporary.path;
@@ -105,11 +89,6 @@ function cleanTemporary(root, journal, io) {
   if (journal.temporary && readProjectFile(root, journal.temporary.path) !== null) io.unlinkSync(projectPath(root, journal.temporary.path));
   journal.temporary = null;
 }
-function releaseLock(root, bytes, io) {
-  if (!equalBytes(readProjectFile(root, lockPath), bytes)) incomplete('Write lock ownership changed; lock was preserved');
-  io.unlinkSync(projectPath(root, lockPath));
-}
-
 export function applyInstallationPlan(plan, { io = fs } = {}) {
   const root = plan.root, operationId = randomUUID(), created = [], lock = takeNewLock(root, operationId, io, created);
   const journalPath = local + '/operations/' + operationId + '/journal.json';
@@ -158,7 +137,7 @@ function classify(root, entry, mode) {
   if (pre && (mode === 'undo' || entry.status !== 'applied')) return 'pending';
   throw new WorkflowError('CONFLICT', 'Operation target changed; it was preserved: ' + entry.path);
 }
-export function recoverInstallation(root, mode, prepare, { io = fs } = {}) {
+export function recoverInstallation(root, mode, prepare, { io = fs,preview=false,operationId } = {}) {
   const operations = scanOperations(root), bytes = readProjectFile(root, lockPath);
   let owner;
   if (bytes) {
@@ -170,11 +149,13 @@ export function recoverInstallation(root, mode, prepare, { io = fs } = {}) {
   const pending = operations.filter(op => !['committed', 'rolled_back'].includes(op.data.phase));
   const operation = owner ? operations.find(op => op.data.operation_id === owner.operation_id) : pending[0];
   if (!operation || pending.length > 1 || owner && owner.nonce !== operation.data.nonce || operation.data.phase === 'rolled_back' || mode === 'undo' && operation.data.phase === 'committed') incomplete('No safely recoverable operation was found');
+  if(operationId&&operation.data.operation_id!==operationId)throw new WorkflowError('CONFLICT','Requested installation operation differs');
   if (operation.data.intent === 'undo' && mode !== 'undo') incomplete('A partial undo must be continued with undo');
   const plan = prepare(operation.data), journal = operation.data;
   inspectTemporary(root, journal);
   if (journal.phase !== 'committed') for (const entry of journal.files) classify(root, entry, mode);
   else plan.verify();
+  if(preview)return {action:'preview',kind:'installation',operation_id:journal.operation_id,mode,targets:journal.files.map(entry=>({path:entry.path,kind:entry.kind,action:journal.phase==='committed'?'verify':mode==='undo'?'restore':'resume'})),lock_action:owner?'release_verified_owner':'none',acceptance_verified:false};
   if (owner) releaseLock(root, bytes, io);
   const lock = takeNewLock(root, journal.operation_id, io, journal.created_dirs, journal.nonce);
   let saved = operation.bytes;

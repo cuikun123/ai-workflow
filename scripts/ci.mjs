@@ -13,6 +13,28 @@ required.push('tests/runtime/installation.test.mjs', 'tests/runtime/install-reco
 required.push('tests/codex-client/evaluate.test.mjs');
 required.push('tests/codex-client/coverage.test.mjs');
 required.push('tests/runtime/git-line-endings.test.mjs');
+required.push('tests/runtime/workflow-docs.test.mjs','tests/runtime/workflow-artifacts.test.mjs','tests/runtime/workflow-status.test.mjs','tests/runtime/workflow-transitions.test.mjs','tests/runtime/workflow-recovery.test.mjs','tests/runtime/workflow-cli.test.mjs');
+required.push('tests/codex-client/state-events.test.mjs');
+required.push('tests/runtime/diagnostics.test.mjs','tests/runtime/recovery.test.mjs','tests/runtime/diagnostics-cli.test.mjs');
+required.push('tests/codex-client/doctor-evaluate.test.mjs');
+required.push('tests/runtime/version-plans.test.mjs','tests/runtime/version-recovery.test.mjs','tests/runtime/version-cli.test.mjs','tests/runtime/version-faults.test.mjs');
+required.push('tests/runtime/version-audit.test.mjs');
+required.push('tests/runtime/version-boundaries.test.mjs');
+required.push('tests/end-to-end/evaluate.test.mjs','tests/end-to-end/deployment.test.mjs','tests/end-to-end/controller.test.mjs');
+required.push('tests/end-to-end/cases.test.mjs');
+required.push('tests/end-to-end/review.test.mjs');
+required.push('tests/end-to-end/client-journal.test.mjs','tests/end-to-end/transcript.test.mjs','tests/end-to-end/operations.test.mjs');
+required.push('tests/end-to-end/audit.test.mjs');
+required.push('tests/end-to-end/progress-evidence.test.mjs');
+required.push('tests/codex-client/realpath-evidence.test.mjs');
+required.push('tests/runtime/spec-docs.test.mjs','tests/runtime/spec-deltas.test.mjs','tests/runtime/spec-cli.test.mjs');
+required.push('tests/runtime/spec-sync.test.mjs','tests/runtime/spec-sync-recovery.test.mjs','tests/runtime/spec-sync-cli.test.mjs','tests/runtime/spec-sync-workflow.test.mjs','tests/runtime/spec-sync-process.test.mjs');
+required.push('tests/runtime/spec-inputs.test.mjs','tests/runtime/skill-bundles.test.mjs','tests/runtime/skills-cli.test.mjs','tests/runtime/skills-integrity.test.mjs');
+required.push('tests/runtime/verification-policy.test.mjs','tests/runtime/verification-cli.test.mjs');
+required.push('tests/end-to-end/chunk-evidence.test.mjs');
+required.push('tests/end-to-end/chunk-gate.test.mjs');
+required.push('tests/end-to-end/client-package.test.mjs','tests/end-to-end/work-metrics.test.mjs');
+required.push('tests/end-to-end/optimization-fixtures.test.mjs');
 function tests(directory) { return readdirSync(directory, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? tests(join(directory, entry.name)) : entry.name.endsWith('.test.mjs') ? [join(directory, entry.name)] : []); }
 mkdirSync(join(root, '.artifacts'), { recursive: true });
 const events = [];

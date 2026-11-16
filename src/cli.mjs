@@ -12,7 +12,20 @@ Usage:
   --version
   check [--package <directory> | --project <directory>] [--json]
   validate --state <file> [--json]
+  spec check [--project <directory>] [--iteration <path> --task <id>] [--json]
+  spec sync [--project <directory>] --iteration <path> --task <id> --request-id <id> --expected-revision <n> [--preview] [--json]
+  skills check [--package <directory> | --project <directory>] [--json]
   init --project <directory> [--preview | --repair | --resume | --undo] [--json]
+  status [--project <directory>] [--json]
+  doctor [--project <directory>] [--package <fixed-source>] [--client-evidence <json>] [--json]
+  recover [--project <directory>] --repair --package <fixed-source> [--preview] [--json]
+  recover [--project <directory>] --resume|--undo --operation-id <uuid> [--package <fixed-source>] [--expected-revision <n>] [--preview] [--json]
+  recover [--project <directory>] --refresh --expected-revision <n> --request-id <id> [--preview] [--json]
+  check --project <directory> --documents [--json]
+  transition [--project <directory>] --input <operation-json> [--json]
+  transition [--project <directory>] --resume|--undo --expected-revision <integer> [--json]
+  upgrade --project <directory> --from-package <fixed-dev5> --expected-revision <integer> [--preview] [--json]
+  rollback --project <directory> --operation-id <upgrade-uuid> --expected-revision <integer> [--preview] [--json]
 Installation and resource checks do not verify client integration or user acceptance.
 State validation checks syntax and structure only; references and acceptance are not verified.
 `;
@@ -20,12 +33,16 @@ function parse(args) {
   if (args.filter(value => value === '--json').length > 1) throw new WorkflowError('USAGE', 'Duplicate option: --json');
   const json = args.includes('--json'); args = args.filter(value => value !== '--json');
   if (args.length === 1 && ['--help', '-h', '--version'].includes(args[0])) return { command: args[0], json };
-  const command = args.shift(); if (!['check', 'validate', 'init'].includes(command)) throw new WorkflowError('USAGE', 'Expected check, validate, init, --help or --version');
+  const command = args.shift();
+  if(command==='skills'&&args.shift()!=='check')throw new WorkflowError('USAGE','Expected skills check');
+  const specAction=command==='spec'?args.shift():null;
+  if(command==='spec'&&!['check','sync'].includes(specAction))throw new WorkflowError('USAGE','Expected spec check or spec sync');
+  if (!['skills','spec','check', 'validate', 'init','status','transition','doctor','recover','upgrade','rollback'].includes(command)) throw new WorkflowError('USAGE', 'Expected skills check, spec check, check, validate, init, status, transition, doctor, recover, upgrade, rollback, --help or --version');
   const options = {};
   while (args.length) {
     const key = args.shift();
-    const flags = command === 'init' ? ['--preview', '--repair', '--resume', '--undo'] : [];
-    const values = command === 'check' ? ['--package', '--project'] : command === 'validate' ? ['--state'] : ['--project'];
+    const flags = command==='spec'&&specAction==='sync'?['--preview']:['upgrade','rollback'].includes(command)?['--preview']:command === 'init' ? ['--preview', '--repair', '--resume', '--undo'] : command==='transition'?['--resume','--undo']:command==='check'?['--documents']:command==='recover'?['--repair','--resume','--undo','--refresh','--preview']:[];
+    const values = command==='skills'?['--project','--package']:command==='spec'?['--project','--iteration','--task',...(specAction==='sync'?['--request-id','--expected-revision']:[])]:command==='upgrade'?['--project','--from-package','--expected-revision']:command==='rollback'?['--project','--operation-id','--expected-revision']:command === 'check' ? ['--package', '--project'] : command === 'validate' ? ['--state'] : command==='transition'?['--project','--input','--expected-revision']:command==='doctor'?['--project','--package','--client-evidence']:command==='recover'?['--project','--package','--operation-id','--expected-revision','--request-id']:['--project'];
     if (options[key] !== undefined || !flags.includes(key) && !values.includes(key)) throw new WorkflowError('USAGE', 'Invalid or duplicate option: ' + key);
     if (flags.includes(key)) options[key] = true;
     else {
@@ -34,9 +51,21 @@ function parse(args) {
     }
   }
   if (command === 'validate' && !options['--state']) throw new WorkflowError('USAGE', 'validate requires --state <file>');
-  if (command === 'check' && options['--package'] && options['--project']) throw new WorkflowError('USAGE', '--package and --project are mutually exclusive');
+  if(command==='spec'&&(!!options['--iteration']!==!!options['--task']||options['--iteration']&&!/^docs\/iterations\/[^/]+$/u.test(options['--iteration'])||options['--task']&&!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(options['--task'])))throw new WorkflowError('USAGE','Task selection requires an iteration path and exact task ID');
+  if(command==='spec'&&specAction==='sync'&&(!options['--iteration']||!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(options['--request-id']||'')||!/^(?:0|[1-9][0-9]*)$/u.test(options['--expected-revision']||'')||!Number.isSafeInteger(Number(options['--expected-revision']))))throw new WorkflowError('USAGE','Specification synchronization requires task, request ID and exact safe revision');
+  if (['check','skills'].includes(command) && options['--package'] && options['--project']) throw new WorkflowError('USAGE', '--package and --project are mutually exclusive');
   if (command === 'init' && (!options['--project'] || ['--preview', '--repair', '--resume', '--undo'].filter(key => options[key]).length > 1)) throw new WorkflowError('USAGE', 'init requires --project and at most one operation mode');
-  return { command, json, ...options };
+  if(command==='check'&&options['--documents']&&options['--package'])throw new WorkflowError('USAGE','Document validation requires a project');
+  if(command==='transition'){
+    if([options['--input'],options['--resume'],options['--undo']].filter(Boolean).length!==1)throw new WorkflowError('USAGE','transition requires exactly one input or recovery mode');
+    if(options['--input']&&options['--expected-revision']||!options['--input']&&!/^(?:0|[1-9][0-9]*)$/u.test(options['--expected-revision']||'')||!options['--input']&&!Number.isSafeInteger(Number(options['--expected-revision'])))throw new WorkflowError('USAGE','Recovery requires an exact safe revision');
+  }
+  if(command==='recover'){
+    if(['--repair','--resume','--undo','--refresh'].filter(k=>options[k]).length!==1)throw new WorkflowError('USAGE','recover requires exactly one operation');
+    if(options['--expected-revision']!==undefined&&(!/^(?:0|[1-9][0-9]*)$/u.test(options['--expected-revision'])||!Number.isSafeInteger(Number(options['--expected-revision']))))throw new WorkflowError('USAGE','Recovery requires an exact safe revision');
+  }
+  if(['upgrade','rollback'].includes(command)){if(!options['--project']||! /^(?:0|[1-9][0-9]*)$/u.test(options['--expected-revision']||'')||!Number.isSafeInteger(Number(options['--expected-revision']))||command==='upgrade'&&!options['--from-package']||command==='rollback'&&!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(options['--operation-id']||''))throw new WorkflowError('USAGE','Version operation requires explicit project, exact revision and fixed source or upgrade ID');}
+  return { command, json, specAction, ...options };
 }
 
 export async function runCli(args = process.argv.slice(2), context = {}) {
@@ -48,7 +77,44 @@ export async function runCli(args = process.argv.slice(2), context = {}) {
     const [major, minor] = process.versions.node.split('.').map(Number);
     if (major !== 24 || minor < 18) throw new WorkflowError('ENVIRONMENT', 'Node 24.18.0 or later within major 24 is required');
     let data;
-    if (options.command === 'init') {
+    if(options.command==='skills'){
+      if(options['--project']||context.projectRoot&&!options['--package']){const {checkInstallation}=await import('./installation.mjs');const result=checkInstallation(options['--project']?resolve(options['--project']):context.projectRoot);data=result.skills;}
+      else{const sourceRoot=fileURLToPath(new URL('../',import.meta.url)),result=checkPackage(options['--package']?resolve(options['--package']):context.packageRoot||join(sourceRoot,'dist'));data=result.skills;}
+    }else if(options.command==='spec'){
+      const projectRoot=options['--project']?resolve(options['--project']):context.projectRoot;
+      if(!projectRoot)throw new WorkflowError('USAGE','Specification checks require an explicit project');
+      const {checkInstallation}=await import('./installation.mjs'),{inspectSpecifications}=await import('./spec-deltas.mjs');
+      checkInstallation(projectRoot);
+      if(options.specAction==='check'){
+        data=inspectSpecifications(projectRoot,{taskRef:options['--task']?{path:options['--iteration']+'/tasks.md',record_id:options['--task']}:null});
+        if(!data.valid)throw new WorkflowError('STATE_INVALID','Specification identities, declared changes or references are inconsistent',data.issues);
+      }else{
+        const {planWorkflowOperation,applyWorkflowTransition}=await import('./workflow-journal.mjs'),{sha256}=await import('./package.mjs');
+        const request={operation_version:2,request_id:options['--request-id'],expected_revision:Number(options['--expected-revision']),action:'spec_sync',data:{iteration:options['--iteration'],task:options['--task']}};
+        if(options['--preview']){const plan=planWorkflowOperation(projectRoot,request);data={action:'preview',revision:plan.beforeState.revision,next_revision:plan.afterState.revision,files:plan.files.map(f=>({path:f.path,kind:f.kind,action:f.before===null?'create':'update',before_sha256:f.before===null?null:sha256(f.before),after_sha256:sha256(f.after)})),targets:plan.files.filter(f=>f.path.startsWith('docs/project/specs/')).map(f=>({path:f.path,action:f.before===null?'create':'update',before_sha256:f.before===null?null:sha256(f.before),after_sha256:sha256(f.after)})),acceptance_verified:false,source_authenticity_verified:false};}
+        else data=applyWorkflowTransition(projectRoot,request);
+      }
+    }else if(['upgrade','rollback'].includes(options.command)){
+      if(context.projectRoot)throw new WorkflowError('USAGE','Use the complete fixed dev.6 distribution for version changes');
+      const {applyVersionChange}=await import('./version-journal.mjs'),sourceRoot=fileURLToPath(new URL('../',import.meta.url));
+      data=applyVersionChange(resolve(options['--project']),{mode:options.command,packageRoot:context.packageRoot||join(sourceRoot,'dist'),fromPackageRoot:options['--from-package']?resolve(options['--from-package']):undefined,operationId:options['--operation-id'],expectedRevision:Number(options['--expected-revision']),preview:!!options['--preview']});
+    }else if(options.command==='doctor'||options.command==='recover'){
+      const projectRoot=options['--project']?resolve(options['--project']):context.projectRoot;if(!projectRoot)throw new WorkflowError('USAGE','Project diagnostics/recovery requires an explicit project');
+      if(options.command==='doctor'){
+        const {diagnoseProject}=await import('./diagnostics.mjs');let clientEvidence;
+        if(options['--client-evidence']){const file=resolve(options['--client-evidence']),stat=lstatSync(file);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>65536)throw new WorkflowError('USAGE','Client evidence must be a bounded regular JSON file');const {parseStrictJson}=await import('./workflow-docs.mjs');clientEvidence=parseStrictJson(new TextDecoder('utf-8',{fatal:true}).decode(readFileSync(file)),65536);}
+        data=diagnoseProject(projectRoot,{packageRoot:options['--package']?resolve(options['--package']):undefined,clientEvidence});
+      }else{const {recoverProject}=await import('./recovery.mjs');data=recoverProject(projectRoot,{mode:options['--repair']?'repair':options['--resume']?'resume':options['--undo']?'undo':'refresh',packageRoot:options['--package']?resolve(options['--package']):undefined,operationId:options['--operation-id'],expectedRevision:options['--expected-revision']!==undefined?Number(options['--expected-revision']):undefined,requestId:options['--request-id'],preview:!!options['--preview']});}
+    }else if(options.command==='status'){
+      const projectRoot=options['--project']?resolve(options['--project']):context.projectRoot;if(!projectRoot)throw new WorkflowError('USAGE','status requires an explicit project');
+      const {inspectWorkflowState}=await import('./workflow-status.mjs');const {checkInstallation}=await import('./installation.mjs');
+      data=inspectWorkflowState(projectRoot);try{data.installation=checkInstallation(projectRoot);}catch(error){data.valid=false;data.issues.push({code:error.code||'INCOMPLETE',message:error.message,path:null});data.diagnostic='incomplete';}
+    }else if(options.command==='transition'){
+      const projectRoot=options['--project']?resolve(options['--project']):context.projectRoot;if(!projectRoot)throw new WorkflowError('USAGE','transition requires an explicit project');
+      const {applyWorkflowTransition,recoverWorkflowTransition}=await import('./workflow-journal.mjs');
+      if(options['--input']){const file=resolve(options['--input']),stat=lstatSync(file);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>1024*1024)throw new WorkflowError('STATE_INVALID','Operation input must be a bounded regular JSON file');const {parseStrictJson}=await import('./workflow-docs.mjs');data=applyWorkflowTransition(projectRoot,parseStrictJson(new TextDecoder('utf-8',{fatal:true}).decode(readFileSync(file))));}
+      else data=recoverWorkflowTransition(projectRoot,options['--resume']?'resume':'undo',Number(options['--expected-revision']));
+    }else if (options.command === 'init') {
       if (context.projectRoot) throw new WorkflowError('USAGE', 'init requires the distribution entry; installed projects are not distribution sources');
       const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
       const packageRoot = context.packageRoot || join(sourceRoot, 'dist');
@@ -65,7 +131,9 @@ export async function runCli(args = process.argv.slice(2), context = {}) {
     } else if (options.command === 'check' && (options['--project'] || context.projectRoot && !options['--package'])) {
       const { checkInstallation } = await import('./installation.mjs');
       data = checkInstallation(options['--project'] ? resolve(options['--project']) : context.projectRoot);
+      if(options['--documents']){const {inspectWorkflowState}=await import('./workflow-status.mjs');const documents=inspectWorkflowState(options['--project']?resolve(options['--project']):context.projectRoot);if(!documents.valid)throw new WorkflowError('STATE_INVALID','Project documents or state basis are inconsistent',documents.issues);data.document_validation=documents.document_validation;data.basis_current=documents.basis_current;data.source_authenticity_verified=false;}
     } else if (options.command === 'check') {
+      if(options['--documents'])throw new WorkflowError('USAGE','Document validation requires a project');
       const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
       const root = options['--package'] ? resolve(options['--package']) : (context.packageRoot || join(sourceRoot, 'dist'));
       data = checkPackage(root);
