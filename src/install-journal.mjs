@@ -9,6 +9,7 @@ import { WorkflowError } from './errors.mjs';
 import metadata from '../package.json' with { type: 'json' };
 import layout from '../templates/manifest.json' with { type: 'json' };
 import { skillNames, sha256 } from './package.mjs';
+import {exampleFiles} from './example-resources.mjs';
 
 const local = '.ai-workflow/.local', lockPath = local + '/write.lock';
 export const encode = value => value === null ? null : value.toString('base64');
@@ -17,19 +18,20 @@ export {equalBytes} from './project-writes.mjs';
 const incomplete = message => { throw new WorkflowError('INCOMPLETE', message); };
 const exact = (obj, keys) => obj && typeof obj === 'object' && !Array.isArray(obj) && Object.keys(obj).sort().join(',') === [...keys].sort().join(',');
 const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value);
-function validTarget(path) {
-  return typeof path === 'string' && ((path.startsWith('.ai-workflow/') && !path.startsWith(local + '/')) || skillNames.some(name => path.startsWith('.agents/skills/' + name + '/')) || ['AGENTS.md', '.gitignore', '.gitattributes', 'docs/workflow/state.yaml', ...layout.empty_files, ...layout.directory_placeholders].includes(path));
+function validTarget(path,example) {
+  return typeof path === 'string' && ((path.startsWith('.ai-workflow/') && !path.startsWith(local + '/')) || skillNames.some(name => path.startsWith('.agents/skills/' + name + '/')) || ['AGENTS.md', '.gitignore', '.gitattributes', 'docs/workflow/state.yaml', ...layout.empty_files, ...layout.directory_placeholders].includes(path) || example==='bookmarks'&&exampleFiles.includes(path));
 }
 export function validateInstallationJournal(root,data,expectedVersion=metadata.version){return validateJournal(root,data,expectedVersion);}
 function validateJournal(root, data,expectedVersion=metadata.version) {
-  if (!exact(data, ['journal_version', 'operation_id', 'project_root', 'nonce', 'package', 'installation_id', 'action', 'created_at', 'phase', 'intent', 'created_dirs', 'files', 'temporary']) || data.journal_version !== 1 || !uuid(data.operation_id) || !uuid(data.nonce) || !uuid(data.installation_id) || data.project_root !== root || !['initialized', 'repaired'].includes(data.action) || !['apply', 'undo'].includes(data.intent) || !['prepared', 'applying', 'blocked', 'committed', 'rolled_back'].includes(data.phase)) incomplete('Unknown or inconsistent operation journal');
+  const example=data.journal_version===3;
+  if (!exact(data, ['journal_version', 'operation_id', 'project_root', 'nonce', 'package', 'installation_id', 'action', 'created_at', 'phase', 'intent', 'created_dirs', 'files', 'temporary',...(example?['example']:[])]) || ![1,3].includes(data.journal_version) || example&&(data.example!=='bookmarks'||data.action!=='initialized') || !uuid(data.operation_id) || !uuid(data.nonce) || !uuid(data.installation_id) || data.project_root !== root || !['initialized', 'repaired'].includes(data.action) || !['apply', 'undo'].includes(data.intent) || !['prepared', 'applying', 'blocked', 'committed', 'rolled_back'].includes(data.phase)) incomplete('Unknown or inconsistent operation journal');
   const pkg = data.package;
   if (!exact(pkg, ['name', 'version', 'source_manifest_sha256', 'state_schemas']) || pkg.name !== metadata.name || pkg.version !== expectedVersion || typeof pkg.source_manifest_sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(pkg.source_manifest_sha256) || JSON.stringify(pkg.state_schemas) !== '[1]') incomplete('Journal belongs to an unsupported package');
   if (typeof data.created_at !== 'string' || !Number.isFinite(Date.parse(data.created_at)) || new Date(data.created_at).toISOString() !== data.created_at) incomplete('Invalid journal timestamp');
   if (!Array.isArray(data.files) || !data.files.length || data.files.length > 10000 || !Array.isArray(data.created_dirs) || data.created_dirs.length > 10000) incomplete('Invalid journal inventory');
   const paths = new Set();
   for (const entry of data.files) {
-    if (!exact(entry, ['path', 'kind', 'before', 'before_sha256', 'after', 'status']) || !validTarget(entry.path) || !['file', 'agents', 'ignore', 'attributes'].includes(entry.kind) || !['pending', 'applied', 'undone'].includes(entry.status)) incomplete('Invalid journal target');
+    if (!exact(entry, ['path', 'kind', 'before', 'before_sha256', 'after', 'status']) || !validTarget(entry.path,example?data.example:null) || !['file', 'agents', 'ignore', 'attributes'].includes(entry.kind) || !['pending', 'applied', 'undone'].includes(entry.status)) incomplete('Invalid journal target');
     projectPath(root, entry.path); const key = entry.path.normalize('NFC').toLowerCase();
     if (paths.has(key)) incomplete('Duplicate journal target'); paths.add(key);
     for (const [key, value] of [['before', entry.before], ['after', entry.after]]) {
@@ -99,7 +101,7 @@ export function applyInstallationPlan(plan, { io = fs } = {}) {
   };
   try {
     ensureParent(root, journalPath, io, created);
-    journal = { journal_version: 1, operation_id: operationId, project_root: root, nonce: lock.owner.nonce, package: plan.package, installation_id: plan.installationId, action: plan.action, created_at: plan.createdAt, phase: 'prepared', intent: 'apply', temporary: null, created_dirs: created, files: plan.files.map(file => ({ path: file.path, kind: file.kind, before: encode(file.before), before_sha256: file.before === null ? null : sha256(file.before), after: encode(file.after), status: 'pending' })) };
+    journal = { journal_version: plan.example?3:1,...(plan.example?{example:plan.example}:{}), operation_id: operationId, project_root: root, nonce: lock.owner.nonce, package: plan.package, installation_id: plan.installationId, action: plan.action, created_at: plan.createdAt, phase: 'prepared', intent: 'apply', temporary: null, created_dirs: created, files: plan.files.map(file => ({ path: file.path, kind: file.kind, before: encode(file.before), before_sha256: file.before === null ? null : sha256(file.before), after: encode(file.after), status: 'pending' })) };
     save(); journal.phase = 'applying'; save();
     for (const entry of journal.files) {
       if (entry.path === '.ai-workflow/manifest.json') plan.verify();

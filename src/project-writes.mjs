@@ -14,7 +14,14 @@ export function durableWrite(root, path, bytes, before, io, created, registeredT
   try {
     fd = io.openSync(absolute, 'wx', 0o600); ownTemporary = true; io.writeFileSync(fd, bytes); io.fsyncSync(fd); io.closeSync(fd); fd = undefined;
     if (!equalBytes(readProjectFile(root, temporary,readLimit), bytes) || !equalBytes(readProjectFile(root, path,readLimit), before)) throw new WorkflowError('CONFLICT', 'File changed during preparation: ' + path);
-    io.renameSync(absolute, projectPath(root, path));
+    for(let attempt=0;;attempt++){
+      if(!equalBytes(readProjectFile(root,temporary,readLimit),bytes)||!equalBytes(readProjectFile(root,path,readLimit),before))throw new WorkflowError('CONFLICT','File changed before rename: '+path);
+      try{io.renameSync(absolute,projectPath(root,path));break;}
+      catch(error){
+        if(process.platform!=='win32'||!['EPERM','EBUSY'].includes(error.code)||attempt>=3)throw error;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,[100,200,400][attempt]);
+      }
+    }
     if (!equalBytes(readProjectFile(root, path,readLimit), bytes)) throw new WorkflowError('IO', 'Written file failed readback: ' + path);
   } finally {
     if (fd !== undefined) io.closeSync(fd);

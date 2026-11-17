@@ -2,7 +2,7 @@
 name: review-work
 description: "用于采用 ai-workflow 文档体系的项目，按请求审查方案或计划、在实现前检查关键方案、审查任务或整轮实现、核验审查反馈及修复后复查。方案审查按影响和项目安排使用；仅编写方案或计划、运行测试、定位故障时不使用。"
 metadata:
-  version: "0.3.1"
+  version: "0.3.2"
   capability: "review"
 ---
 

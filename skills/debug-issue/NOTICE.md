@@ -63,3 +63,7 @@ SOFTWARE.
 ## 0.3.1修订
 
 按D135接入任务轻重、条件读取与按能力交接，保留原方法职责和全部许可；验证政策采用实际命令/观察及明确审查方式，不照搬“稍有关联即强制调用”的触发。
+
+## 0.3.2
+
+Updated shared references for artifact inspection and explicit read-only client diagnostics; original licenses preserved.

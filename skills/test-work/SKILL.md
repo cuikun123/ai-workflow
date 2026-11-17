@@ -2,7 +2,7 @@
 name: test-work
 description: "用于采用 ai-workflow 文档体系的项目，在需要验证任务或改动、补充测试、执行已有检查，或判断测试覆盖与结果是否充分时使用。仅规划新功能、独立代码审查或专门调查故障原因时不使用。"
 metadata:
-  version: "0.3.1"
+  version: "0.3.2"
   capability: "testing"
 ---
 

@@ -1,6 +1,8 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, cpSync, readdirSync, rmSync, renameSync, lstatSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {renameDirectory} from './build-rename.mjs';
+import {copyExample} from '../src/example-resources.mjs';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { listRegularFiles, assertSafeRoot, isWithin, resolveRegularFile } from '../src/paths.mjs';
@@ -84,6 +86,7 @@ doctor --project <dir> --json聚合本地资源、版本、状态、日志和锁
 Copyright (c) 2026 TY. MIT见LICENSE；第三方许可见THIRD_PARTY_NOTICES.md及resources/skills/*/NOTICE.md。
 `);
     copyTree(join(repo, 'templates'), join(staging, 'resources/templates'));
+    mkdirSync(join(staging,'resources/examples'));copyExample(join(repo,'examples/bookmarks'),join(staging,'resources/examples/bookmarks'));
     mkdirSync(join(staging, 'resources/schemas'), { recursive: true });
     cpSync(join(repo, 'schemas/state-v1.schema.json'), join(staging, 'resources/schemas/state-v1.schema.json'));
     cpSync(join(repo, 'schemas/workflow-record-v1.schema.json'), join(staging, 'resources/schemas/workflow-record-v1.schema.json'));
@@ -98,13 +101,13 @@ Copyright (c) 2026 TY. MIT见LICENSE；第三方许可见THIRD_PARTY_NOTICES.md�
     const files = listRegularFiles(staging).map(path => { const bytes = readFileSync(join(staging, path)); return { path, bytes: bytes.length, sha256: sha256(bytes) }; });
     writeFileSync(join(staging, 'resource-manifest.json'), JSON.stringify({ manifest_version: 1, kind: 'ai-workflow-resource-package', package: { name: metadata.name, version: metadata.version, state_schemas: [1] }, files }, null, 2) + '\n');
     checkPackage(staging);
-    if (existsSync(output)) { if(!previousExpectation)throw new WorkflowError('CONFLICT','Output appeared during build');checkPackage(output,previousExpectation); renameSync(output, previous); movedPrevious = true; }
-    renameSync(staging, output); installed = true;
+    if (existsSync(output)) { if(!previousExpectation)throw new WorkflowError('CONFLICT','Output appeared during build');checkPackage(output,previousExpectation); renameDirectory(output, previous); movedPrevious = true; }
+    renameDirectory(staging, output); installed = true;
     const result = checkPackage(output);
     if (movedPrevious) { checkPackage(previous,previousExpectation); rmSync(previous, { recursive: true }); }
     return { output, ...result };
   } catch (error) {
-    if (!installed && movedPrevious && !existsSync(output)) renameSync(previous, output);
+    if (!installed && movedPrevious && !existsSync(output)) renameDirectory(previous, output);
     throw error;
   } finally { if (existsSync(staging)) rmSync(staging, { recursive: true }); }
 }

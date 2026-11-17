@@ -17,6 +17,7 @@ import { createNavigationBlock, createIgnoreBlock, createAttributesBlock, initia
 import { applyInstallationPlan, assertNoPendingOperation, scanOperations, recoverInstallation, decode, equalBytes } from './install-journal.mjs';
 import { WorkflowError } from './errors.mjs';
 import {inspectSkillResources,skillPolicy,providerResources} from './skill-resources.mjs';
+import {exampleResources} from './example-resources.mjs';
 
 const manifestPath = '.ai-workflow/manifest.json';
 const roots = skillNames.map(name => '.agents/skills/' + name);
@@ -161,11 +162,13 @@ function stateBytes(createdAt, business) {
   const state = { schema_version: 1, revision: 0, current_iteration: 'docs/iterations/000-foundation', current_task: null, phase: 'clarify', status: 'not_started', waiting_for: null, checkpoint_ref: null, confirmation_refs: [], blocker_refs: [], basis: paths.map(path => ({ path, sha256: sha256(business.find(file => file.path === path).after) })), updated_at: createdAt };
   const bytes = Buffer.from(stringify(state)); validateStateYaml(bytes.toString('utf8')); return bytes;
 }
-export function planInstallation({ packageRoot, projectRoot, mode = 'init' }) {
+export function planInstallation({ packageRoot, projectRoot, mode = 'init',example }) {
   if (!['init', 'repair'].includes(mode)) fail('This mode requires an incomplete operation', 'INCOMPLETE');
   const root = canonicalRoot(projectRoot), source = blueprint(packageRoot);
   if (isWithin(root, fs.realpathSync.native(packageRoot)) || isWithin(fs.realpathSync.native(packageRoot), root)) fail('Package and project directories must not overlap');
   assertNoPendingOperation(root); const existing = readManifest(root), createdAt = new Date().toISOString();
+  let sample=[];
+  if(example){if(mode!=='init'||existing||fs.readdirSync(root).some(p=>p!=='.git'))fail('Example initialization needs a new empty project');sample=exampleResources(packageRoot,example);}
   let files, installationId = existing?.installation_id || randomUUID(), manifest;
   if (existing) {
     if (existing.package.source_manifest_sha256 !== source.package.source_manifest_sha256) fail('Same version has a different source package; automatic replacement is refused');
@@ -198,7 +201,7 @@ export function planInstallation({ packageRoot, projectRoot, mode = 'init' }) {
     const business = [...layout.empty_files, ...layout.directory_placeholders].map(path => ({ path, kind: 'file', before: null, after: fs.readFileSync(join(packageRoot, 'resources/templates/project', path)) }));
     business.push({ path: 'docs/workflow/state.yaml', kind: 'file', before: null, after: stateBytes(createdAt, business) });
     for (const file of business) if (readProjectFile(root, file.path) !== null) fail('Business target already exists: ' + file.path);
-    files.push(...business);
+    files.push(...business,...sample);
     manifest = { manifest_version: 2, kind: 'iterlane-project-installation', installation_id: installationId, package: source.package, skill_roots: roots, files: source.files.map(file => ({ path: file.path, bytes: file.after.length, sha256: sha256(file.after) })), blocks: blockRecords(),state_document_paths:initialBasisPaths };
   }
   validateManifest(root, manifest);
@@ -206,8 +209,9 @@ export function planInstallation({ packageRoot, projectRoot, mode = 'init' }) {
   const verify = () => {
     const result = inspect(root, manifest);
     if (result.missing.length || result.changed.length || result.extra.length || result.missingBlocks.length) fail('Installation readback did not match the prepared resources', 'INCOMPLETE');
+    for(const file of sample)if(!equalBytes(readProjectFile(root,file.path),file.after))fail('Example file changed during initialization','CONFLICT');
   };
-  return { action: existing ? 'repaired' : 'initialized', root, package: source.package, installationId, createdAt, files, manifest, verify };
+  return { action: existing ? 'repaired' : 'initialized', root, package: source.package, installationId, createdAt, files, manifest, verify,...(example?{example}:{}) };
 }
 export function initializeProject(options) {
   if (['resume', 'undo'].includes(options.mode)) {
@@ -219,10 +223,12 @@ export function initializeProject(options) {
       if(journal.action==='repaired'){let original;try{original=JSON.parse(decode(journal.files.at(-1).before));}catch{fail('Repair original manifest is invalid');}validateManifest(root,original);protectionPaths=original.state_document_paths;}
       const manifest = { manifest_version: 2, kind: 'iterlane-project-installation', installation_id: journal.installation_id, package: source.package, skill_roots: roots, files: source.files.map(file => ({ path: file.path, bytes: file.after.length, sha256: sha256(file.after) })), blocks: blockRecords(protectionPaths),state_document_paths:protectionPaths };
       const expected = new Map(source.files.map(file => [file.path, file.after]));
+      const sample=journal.journal_version===3?exampleResources(options.packageRoot,journal.example):[];
       if (journal.action === 'initialized') {
         const business = [...layout.empty_files, ...layout.directory_placeholders].map(path => ({ path, after: fs.readFileSync(join(options.packageRoot, 'resources/templates/project', path)) }));
         business.push({ path: 'docs/workflow/state.yaml', after: stateBytes(journal.created_at, business) });
         for (const file of business) expected.set(file.path, file.after);
+        for(const file of sample)expected.set(file.path,file.after);
       }
       const paths = new Set(journal.files.map(file => file.path));
       if (journal.files.at(-1).path !== manifestPath || journal.action === 'initialized' && (paths.size !== expected.size + blockBlueprint().length + 1 || [...expected.keys()].some(path => !paths.has(path)) || blockBlueprint().some(block => !paths.has(block.path)))) fail('Recovery inventory differs from the original installation plan');
@@ -245,7 +251,7 @@ export function initializeProject(options) {
         const entry = journal.files.find(file => file.path === journal.temporary.target), image = decode(journal.temporary.data);
         if (journal.intent === 'apply' && !equalBytes(image, decode(entry.after)) || journal.intent === 'undo' && entry.kind === 'file' && !equalBytes(image, decode(entry.before)) || journal.intent === 'undo' && entry.kind !== 'file' && parseManagedBlock(image, entry.kind) !== null) fail('Temporary payload is outside its operation intent');
       }
-      return { verify: () => { const result = inspect(root, manifest); if (result.missing.length || result.changed.length || result.extra.length || result.missingBlocks.length) fail('Recovery resource readback failed', 'INCOMPLETE'); } };
+      return { verify: () => { const result = inspect(root, manifest); if (result.missing.length || result.changed.length || result.extra.length || result.missingBlocks.length) fail('Recovery resource readback failed', 'INCOMPLETE');if(journal.phase!=='committed')for(const file of sample)if(!equalBytes(readProjectFile(root,file.path),file.after))fail('Example recovery content differs','CONFLICT'); } };
     };
     const result = recoverInstallation(root, options.mode, prepare, options);
     if (options.mode === 'resume'&&!options.preview) checkInstallation(root);

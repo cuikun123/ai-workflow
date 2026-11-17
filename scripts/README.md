@@ -8,7 +8,10 @@
 | `validate --state <file> --json` | 检查状态文件结构 |
 | `status --json` | 查询任务、等待条件和依据是否有效 |
 | `doctor --json` | 分类诊断资源、状态、版本、日志和锁问题 |
+| `doctor --client [--client-cli <file>] [--timeout-ms <1000..180000>] --json` | 明确请求时调用现有Codex，检查技能发现与真实只读状态查询 |
 | `init --project <dir> [--preview \| --repair \| --resume \| --undo] --json` | 初始化、同版本补缺及未完成初始化恢复 |
+| `init --example bookmarks --project <空目录> [--preview] --json` | 安装带可运行检查脚本的收藏示例；恢复不需重复传example |
+| `artifacts inspect [--kind file\|definition] --path <相对文件>... --json` | 只读取得可引用摘要，重复path可查询多文件 |
 | `spec check --json` | 检查需求、场景、任务引用和声明增量 |
 | `skills check --json` | 检查技能依赖、参考和共享资源 |
 | `spec sync --iteration <path> --task <id> --request-id <id> --expected-revision <n> [--preview] --json` | 同步当前已验收任务；预览零写，执行生成收据 |
@@ -22,6 +25,7 @@
 - `npm run build`：构建运行工具、技能、模板、结构定义和许可，输出到 `dist/`。
 - `node scripts/build.mjs --out <dir>`：指定构建目录，只替换通过检查的同类资源包。
 - `npm run ci`：运行必测集、构建和打包，汇总与原始事件输出到 `.artifacts/`；不自动调用模型。
+- `node scripts/deliver.mjs --package <完整包> --expected-manifest <资源清单SHA256> --out <新目录>`：核对固定包字节，生成含展开工具、使用说明、示例和校验清单的试用ZIP，并真实解包检查。
 
 构建从单一共享来源生成各技能的参考副本，并检查摘要一致性。依赖锁定在根锁文件中；分发包运行无需 npm 或源码开发依赖。
 

@@ -2,7 +2,7 @@
 name: debug-issue
 description: "用于采用 ai-workflow 文档体系的项目，在出现报错、测试或构建失败、集成异常、异步不稳定行为，需要调查原因或修复已定位问题时使用。仅审查意见、查询进度或提出新功能时不使用。"
 metadata:
-  version: "0.3.1"
+  version: "0.3.2"
   capability: "diagnosis"
 ---
 

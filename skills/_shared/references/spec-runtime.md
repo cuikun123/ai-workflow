@@ -6,7 +6,7 @@
 
 运行spec check，必要时限定iteration/task。成功JSON中的specifications给文件path/sha256；requirements给id/path/区段sha256/scenario_ids；definitions给scope/tasks等声明定义的path/sha256。用这些实际返回值准备base、before_sha256和definition artifacts，不自行重写Markdown解析或猜摘要。
 
-业务文件原字节SHA-256可用Node crypto计算：node -e "const fs=require('fs'),c=require('crypto');console.log(c.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex'))" <相对文件>。操作JSON通过文件传给transition，不将用户文本拼到shell命令里。
+业务文件使用 `node .ai-workflow/bin/iterlane.mjs artifacts inspect --path <相对文件> --json`，多个文件重复给 `--path`。返回的 `data.artifacts` 是可直接引用的 kind/path/sha256；定义摘要可加 `--kind definition`。该命令只读，拒绝缺失、链接和越界路径；文件变化后需重新取得摘要。操作JSON通过文件传给transition，不将用户文本拼到shell命令里。
 
 ## 任务与增量输入
 

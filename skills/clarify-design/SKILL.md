@@ -2,7 +2,7 @@
 name: clarify-design
 description: "用于目标、业务预期或关键方案不明，需要澄清比较；也用于明确开轮、暂停恢复资料或已确认的项目概览维护。已有明确可执行的小修改不重新澄清整套需求。"
 metadata:
-  version: "0.3.1"
+  version: "0.3.2"
   capability: "clarify"
 ---
 

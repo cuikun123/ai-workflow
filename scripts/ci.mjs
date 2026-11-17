@@ -35,6 +35,8 @@ required.push('tests/end-to-end/chunk-evidence.test.mjs');
 required.push('tests/end-to-end/chunk-gate.test.mjs');
 required.push('tests/end-to-end/client-package.test.mjs','tests/end-to-end/work-metrics.test.mjs');
 required.push('tests/end-to-end/optimization-fixtures.test.mjs');
+required.push('tests/runtime/artifact-inspect.test.mjs','tests/runtime/client-probe.test.mjs','tests/runtime/example-init.test.mjs','tests/runtime/example-copy.test.mjs','tests/runtime/delivery.test.mjs','tests/runtime/build-rename.test.mjs','tests/end-to-end/usability-evaluate.test.mjs');
+required.push('tests/runtime/project-writes.test.mjs','tests/end-to-end/usability-evidence.test.mjs');
 function tests(directory) { return readdirSync(directory, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? tests(join(directory, entry.name)) : entry.name.endsWith('.test.mjs') ? [join(directory, entry.name)] : []); }
 mkdirSync(join(root, '.artifacts'), { recursive: true });
 const events = [];

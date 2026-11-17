@@ -4,7 +4,7 @@ import {project,snapshot} from '../helpers/installation.mjs';import {renderSingl
 const source=fileURLToPath(new URL('../../skills',import.meta.url));
 test('skill bundles: source rule edits can rebuild an intact previous output while corruption still blocks replacement',()=>{
   const repo=fileURLToPath(new URL('../../',import.meta.url)),artifacts=join(repo,'.artifacts');fs.mkdirSync(artifacts,{recursive:true});const copy=fs.mkdtempSync(join(artifacts,'skills-rebuild-'));
-  for(const path of ['src','scripts','skills','schemas','templates','sources','package.json','package-lock.json','LICENSE'])fs.cpSync(join(repo,path),join(copy,path),{recursive:true});
+  for(const path of ['src','scripts','skills','schemas','templates','sources','examples','package.json','package-lock.json','LICENSE'])fs.cpSync(join(repo,path),join(copy,path),{recursive:true});
   const out=join(project(),'bundle'),build=()=>spawnSync(process.execPath,[join(copy,'scripts/build.mjs'),'--out',out],{cwd:copy,encoding:'utf8',windowsHide:true,timeout:60000});
   const first=build();assert.equal(first.status,0,first.stdout+first.stderr);
   const policyPath=join(copy,'skills/_shared/manifest.json'),policy=JSON.parse(fs.readFileSync(policyPath));policy.rules[0].retire_when+=' New source revision.';fs.writeFileSync(policyPath,JSON.stringify(policy,null,2));
