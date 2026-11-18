@@ -8,8 +8,8 @@
 
 本次三文件分发/交付/示例回归12/13，唯一失败是新版quickstart缺支持范围链接，补回后delivery完整3/3；独立只读资料审查无必须修复项。真实新ZIP解包初始化、预览/查询零写、status/check/context通过，ZIP157份与安装161份Markdown零断链，结构导览未交付。未重跑全量npm test或完整CI、未调用真实模型。C3全量457/489、扩展160/162及后续补验保持原记录，见[验证](../tests/README.md)。
 
-本次候选和证据在本机 %LOCALAPPDATA%/ai-workflow-validation/project-tour-IAVyEs/ 的candidate-final、delivery-final及guide-check.json；最终ZIP和来源摘要见delivery-final/delivery.json。源码克隆后用npm ci和npm run build生成dist；不要依赖他人本机验证目录。旧候选、失败和归档保留，临时副本收口后清理。
+本次ZIP和证据在本机 %LOCALAPPDATA%/ai-workflow-validation/project-tour-IAVyEs/ 的delivery-final及guide-check.json；来源摘要见delivery-final/delivery.json。源码/测试/安装探针/重复构建及解包8处目录已逐字节归档validation-records.zip（12051文件）后清理，完整candidate-final可从归档或当前提交重建。克隆源码后用npm ci和npm run build生成dist；不要依赖他人本机验证目录。旧固定包、原失败及归档保留。
 
-Git：用户按D148明确授权提交当前全部适用源码/文档并普通推送https://github.com/cuikun123/ai-workflow的main。实施前本地HEAD为1293a9d，远端查询成功但无refs；本次已配置指定origin并完成资料回写及显式候选check、diff检查，使用现有作者配置保存。实际提交和推送结果以Git及远端一致性核对为准。不强推、不改可见性/作者，不把Git操作写为业务验收。
+Git：按D148使用现有作者配置提交01932f9（保存当前框架、结构导览和起步资料），已普通推送指定origin的main。远端refs/heads/main与本地提交核对一致；首轮直连超时/凭据助手路径失败保留，最终单命令使用现有代理和Git Credential Manager成功，未修改全局代理/凭据配置。不强推、不改可见性/作者，不把Git保存写为业务验收。收口记录另作普通文档提交，最终以Git HEAD和origin/main为准。
 
 下一步在独立新目录开始真实项目，先按quickstart安装并让AI实际只读核对规则/状态，再讨论真实目标和地基。具体业务项目、Git/数据/部署权限由该项目另行明确；本次未创建或实施真实业务。

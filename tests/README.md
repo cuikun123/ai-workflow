@@ -195,6 +195,8 @@ ZIP SHA256：`cac9d6df229382c16f9d104e815e0a2790c9d64813c3321298e0da298421ed42`�
 
 资料10项变更按主目录前像核对、备份回写，现有源码修改保留；主目录显式candidate-final的check为ok:true、193资源/十一技能一致，git diff --check退出0。结构导览为约140行，按目录/模块阅读，不再包含逐文件长表。
 
+当前框架、结构导览和起步资料已保存01932f9并普通推送指定GitHub main，远端提交一致；凭据使用系统既有Git Credential Manager，代理仅单命令使用，无全局配置变化。本轮源码/测试/安装探针/重复包与解包8处临时目录归档validation-records.zip后清理，12051文件逐字节核对，SHA256为c270a5d77bcf78bfb056e7fc39b92c506603b4ba8587dada12e693cac0ce459d。最终ZIP、检查输出和证据保留在project-tour-IAVyEs，源码可从提交重建；推送后的远端CI未在本轮核实，不称通过。
+
 ### D147上下文正文减负
 
 按用户授权只省略共享manifest的返回正文；完整读取校验、七文件哈希、snapshot算法、绑定artifact和日志读取依赖保持。版本仍为dev.12/技能0.3.3，不改客户端范围，C3仍待用户验收。
