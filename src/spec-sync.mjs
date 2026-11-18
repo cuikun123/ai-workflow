@@ -53,7 +53,7 @@ export function planSpecSynchronization(view,task,{requestId,operationId,accepta
 }
 export function verifyCommittedSpecReceipt(root,receipt){
   const entry=readWorkflowLogs(root).find(x=>x.data.operation_id===receipt.data.operation_id);
-  if(!entry||entry.data.journal_version!==2||entry.data.phase!=='committed'||entry.data.intent!=='apply'||entry.data.request.action!=='spec_sync'||entry.data.request.request_id!==receipt.data.request_id||entry.data.request.data.iteration!==receipt.iteration||entry.data.request.data.task!==receipt.task||receipt.source.reference!=='operation:'+entry.data.operation_id)fail('Synchronization receipt has no matching committed operation');
+  if(!entry||![2,3].includes(entry.data.journal_version)||entry.data.phase!=='committed'||entry.data.intent!=='apply'||entry.data.request.action!=='spec_sync'||entry.data.request.request_id!==receipt.data.request_id||entry.data.request.data.iteration!==receipt.iteration||entry.data.request.data.task!==receipt.task||receipt.source.reference!=='operation:'+entry.data.operation_id)fail('Synchronization receipt has no matching committed operation');
   const file=entry.data.files.find(f=>f.path===receipt.iteration+'/verification.md');if(!file)fail('Committed synchronization has no receipt document');
   const saved=parseWorkflowDocument(decode(file.after).toString('utf8'),file.path).records.get(receipt.id);
   if(!saved||canonicalJson(saved)!==canonicalJson(receipt))fail('Synchronization receipt differs from its committed operation');

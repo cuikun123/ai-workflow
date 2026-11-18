@@ -2,34 +2,45 @@ import {randomUUID} from 'node:crypto';import {parseDocument} from 'yaml';
 import {taskVerificationPolicy,verificationIssues} from './verification-policy.mjs';
 import {WorkflowError} from './errors.mjs';import {sha256} from './package.mjs';import {validateStateYaml} from './state.mjs';
 import {loadWorkflowView,inspectWorkflowView,emptyPosition,positionFromState} from './workflow-status.mjs';
-import {appendWorkflowRecord,replaceWorkflowRecord,parseWorkflowDocument,validateWorkflowRecord} from './workflow-docs.mjs';
+import {appendWorkflowRecord,replaceWorkflowRecord,parseWorkflowDocument,validateWorkflowRecord,definitionDigest} from './workflow-docs.mjs';
 import {checkArtifact,artifactsKey} from './workflow-artifacts.mjs';
 import {readSpecInventory,changeSpecInventory} from './spec-inventory.mjs';
 import {planSpecSynchronization,verifyCommittedSpecReceipt,assertUnchangedSpecifications} from './spec-sync.mjs';
+import {inspectProjectContext,makeFoundationInventory,foundationRoot} from './foundation-context.mjs';
+import {assertTaskContextBinding,contextBindingRecord,contextError,quoteReason,contextMethod} from './context-binding.mjs';
+import {readProjectFile} from './project-paths.mjs';
 
 const fail=message=>{throw new WorkflowError('CONFLICT',message);};
 const exact=(v,keys)=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).sort().join(',')===[...keys].sort().join(',');
 const coreKeys=['phase','status','waiting_for','checkpoint_ref','confirmation_refs','blocker_refs'];
 export function encodeWorkflowState(before,next){const doc=parseDocument(before);for(const [key,value]of Object.entries(next))doc.set(key,value);const bytes=Buffer.from(doc.toString({lineWidth:0}));validateStateYaml(bytes.toString());return bytes;}
-export function planWorkflowTransition(root,request,{operationId=randomUUID(),now=new Date().toISOString(),read,inventory}={}){
-  if(!exact(request,['operation_version','request_id','expected_revision','action','data'])||![1,2].includes(request.operation_version)||typeof request.request_id!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(request.request_id)||!Number.isSafeInteger(request.expected_revision)||!request.data||typeof request.data!=='object'||Array.isArray(request.data))fail('Invalid semantic operation input');
-  const inventories=request.operation_version===2?(inventory||readSpecInventory(root)):null;
+export function requireCurrentOperation(request){if(request?.operation_version!==3)contextError('UNSUPPORTED_OPERATION_VERSION','This runtime writes operation v3 only; recover legacy operations using their matching tool');}
+export function planWorkflowTransition(root,request,{operationId=randomUUID(),now=new Date().toISOString(),read,inventory,allowPendingWorkflow=false}={}){
+  requireCurrentOperation(request);
+  if(!exact(request,['operation_version','request_id','expected_revision','action','data'])||typeof request.request_id!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(request.request_id)||!Number.isSafeInteger(request.expected_revision)||!request.data||typeof request.data!=='object'||Array.isArray(request.data))fail('Invalid semantic operation input');
+  const inventories=inventory||readSpecInventory(root);
   const view=loadWorkflowView(root,{read,inventory:inventories}),beforeState=view.state,inspection=inspectWorkflowView(view);
   if(request.expected_revision!==beforeState.revision||beforeState.revision===Number.MAX_SAFE_INTEGER)fail('State revision changed or cannot be incremented');
-  if(inspection.issues.some(x=>!['STALE_BASIS','STALE_PLAN_CONFIRMATION'].includes(x.code)))fail('Workflow documents or position are inconsistent');
+  if(inspection.issues.some(x=>!['STALE_BASIS','STALE_PLAN_CONFIRMATION','STALE_FOUNDATION','FOUNDATION_MEMBERSHIP_CHANGED'].includes(x.code)))fail('Workflow documents or position are inconsistent');
+  // Pure document planners can operate on abstract views; installed writers
+  // are checked by applyWorkflowTransition and always enter this context gate.
+  const context=view.readFile('.ai-workflow/manifest.json')===null?null:inspectProjectContext(root,{read:read||((path)=>readProjectFile(root,path)),allowPendingWorkflow});
+  if(context){for(const item of [...context.framework.files,context.project_rules,...context.foundation].sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0)){const bytes=view.readFile(item.path);if(bytes===null||sha256(bytes)!==item.sha256)contextError('CONTEXT_CHANGED_DURING_READ','Context changed between workflow reads',item.path);}
+    const paths=new Set([...inventories.flatMap(e=>e.paths),...view.raw.keys()]);if(paths.size>1000)contextError('CONTEXT_DOCUMENT_LIMIT','Project document/context inventory exceeds 1000 entries');}
   const afterState=structuredClone(beforeState),documents=new Map(),data=request.data;
   const readFile=path=>documents.has(path)?documents.get(path):view.readFile(path);
   const getDoc=path=>{const bytes=readFile(path);if(bytes===null)fail('Workflow document is missing');return parseWorkflowDocument(new TextDecoder('utf-8',{fatal:true}).decode(bytes),path);};
   const getRef=(ref,kind)=>{if(!exact(ref,['path','record_id'])||typeof ref.path!=='string'||typeof ref.record_id!=='string')fail('Record reference is missing');const record=getDoc(ref.path).records.get(ref.record_id);if(!record||record.kind!==kind)fail('Record reference is missing or has wrong kind');return record;};
+  const documentBytes=(path,text)=>{const before=view.readFile(path),body=Buffer.from(text);return before?.subarray(0,3).equals(Buffer.from([0xef,0xbb,0xbf]))?Buffer.concat([before.subarray(0,3),body]):body;};
   const getTask=(iteration,id)=>{const task=getDoc(iteration+'/tasks.md').records.get(id);if(!task||task.kind!=='task')fail('Task declaration is missing');return task;};
   let task=beforeState.current_task?getTask(beforeState.current_iteration,beforeState.current_task):null;
-  const v2Gate=()=>{if(task?.record_version!==2)return;if(request.operation_version!==2)fail('A v2 task requires a v2 operation');taskVerificationPolicy(task);};
+  const v2Gate=()=>{if(task?.record_version!==2)return;taskVerificationPolicy(task);};
   v2Gate();
   if(task?.record_version===2&&beforeState.status!=='completed'&&request.action!=='spec_sync')assertUnchangedSpecifications(view);
   let sync_ref=null;
   let position=positionFromState(beforeState,task);
   const changePosition=next=>{position={...position,...next};for(const key of coreKeys)afterState[key]=position[key];};
-  const append=(record,path=record.iteration+'/verification.md')=>{validateWorkflowRecord(record,path);documents.set(path,Buffer.from(appendWorkflowRecord(getDoc(path).text,record,path)));};
+  const append=(record,path=record.iteration+'/verification.md')=>{validateWorkflowRecord(record,path);documents.set(path,documentBytes(path,appendWorkflowRecord(getDoc(path).text,record,path)));};
   const matches=(record,current=true)=>record.data.artifacts.every(artifact=>checkArtifact(root,artifact,{read:readFile,current}).valid);
   const sameSubject=record=>record.iteration===afterState.current_iteration&&(record.task===afterState.current_task||record.task===null&&record.kind==='confirmation'&&['scope','design','plan'].includes(record.data.purpose));
   const stageBound=(record,purpose)=>{const name={scope:'scope',design:'design',plan:'tasks'}[purpose];if(!name)return true;const path=afterState.current_iteration+'/'+name+'.md';return record.data.artifacts.some(a=>a.kind==='git'?a.scope.some(scope=>path===scope||path.startsWith(scope+'/')):a.path===path);};
@@ -64,17 +75,46 @@ export function planWorkflowTransition(root,request,{operationId=randomUUID(),no
       confirmation('plan',refs);
     }
     const all=[];
-    for(const ref of position.check_refs){const record=getRef(ref,'check');if(!sameSubject(record)||record.task!==task.id||record.data.result!=='passed'||!matches(record)||!record.data.evidence.every(a=>checkArtifact(root,a,{read:readFile}).valid))fail('Check record is incomplete or stale');all.push(record);}
+    for(const ref of position.check_refs){const record=getRef(ref,'check');if(record.data.method===contextMethod)contextError('CONTEXT_BINDING_NOT_BUSINESS_CHECK','Context binding cannot replace a required business check',ref.path);if(!sameSubject(record)||record.task!==task.id||record.data.result!=='passed'||!matches(record)||!record.data.evidence.every(a=>checkArtifact(root,a,{read:readFile}).valid))fail('Check record is incomplete or stale');all.push(record);}
     for(const ref of position.review_refs){const record=getRef(ref,'review');if(!sameSubject(record)||record.task!==task.id||record.data.result!=='passed'||record.data.must_fix_open!==0||!matches(record))fail('Required review is missing, stale or has open findings');all.push(record);}
     const policyIssues=verificationIssues(task,all.filter(r=>r.kind==='check'),all.filter(r=>r.kind==='review'));if(policyIssues.length)fail(policyIssues.map(i=>i.message).join('; '));
     const key=artifactsKey(all[0].data.artifacts);if(all.some(r=>artifactsKey(r.data.artifacts)!==key))fail('Checks refer to different candidate content');return key;
   }
-  function checkpoint(reason){if(!afterState.current_iteration)fail('There is no work to checkpoint');const record={record_version:task?.record_version||request.operation_version,id:'checkpoint-'+operationId,kind:'checkpoint',iteration:afterState.current_iteration,task:afterState.current_task,source:{role:'tool',reference:'operation:'+operationId,text:'Recorded previous position; not a new approval'},data:{revision:beforeState.revision,reason,position:structuredClone(position)}};append(record);return {path:record.iteration+'/verification.md',record_id:record.id};}
+  function checkpoint(reason){if(!afterState.current_iteration)fail('There is no work to checkpoint');const record={record_version:task?.record_version||1,id:'checkpoint-'+operationId,kind:'checkpoint',iteration:afterState.current_iteration,task:afterState.current_task,source:{role:'tool',reference:'operation:'+operationId,text:'Recorded previous position; not a new approval'},data:{revision:beforeState.revision,reason,position:structuredClone(position)}};append(record);return {path:record.iteration+'/verification.md',record_id:record.id};}
   const args=(required,optional=[])=>{if(Object.keys(data).some(k=>![...required,...optional].includes(k))||required.some(k=>data[k]===undefined))fail('Unknown or missing operation argument');};
+  const stagePurposes=['scope','design','plan'],waitingPurpose=beforeState.waiting_for==='scope_confirmation'?'scope':beforeState.waiting_for==='plan_confirmation'?'plan':beforeState.waiting_for;
+  const stageConfirmations=request.action==='confirm'&&['paused','blocked','awaiting_user'].includes(beforeState.status)&&Array.isArray(data.confirmation_refs)&&data.confirmation_refs.length?data.confirmation_refs.map(ref=>getRef(ref,'confirmation')):[];
+  const repairConfirmation=stageConfirmations.length>0&&stageConfirmations.every(r=>stagePurposes.includes(r.data.purpose))&&(['paused','blocked'].includes(beforeState.status)||!stageConfirmations.some(r=>r.data.purpose===waitingPurpose));
+  const uniqueRefs=refs=>refs.filter((r,i,a)=>a.findIndex(x=>x.path===r.path&&x.record_id===r.record_id)===i);
+  const needsBinding=['start','resume','verify','closeout','complete','spec_sync'].includes(request.action)||request.action==='await'&&data.waiting_for==='task_acceptance'||request.action==='confirm'&&beforeState.waiting_for==='task_acceptance'&&!repairConfirmation;
+  if(context&&task&&beforeState.status!=='completed'&&needsBinding)assertTaskContextBinding(root,task,{context,read:readFile});
   switch(request.action){
+    case 'context_bind':{
+      args(['iteration','task','expected_snapshot','impact','reason']);
+      if(!context||!task||beforeState.status==='completed'||task.data.progress?.status==='completed'||data.iteration!==beforeState.current_iteration||data.task!==task.id)contextError('CONTEXT_BINDING_SUBJECT','Binding requires the selected unfinished task');
+      if(!/^[a-f0-9]{64}$/u.test(data.expected_snapshot||'')||data.expected_snapshot!==context.snapshot_sha256)contextError('CONTEXT_BINDING_SNAPSHOT_CHANGED','Context snapshot changed; inspect again');
+      if(!['unaffected','affected'].includes(data.impact)||typeof data.reason!=='string'||!data.reason.trim()||data.reason.length>4096)contextError('INVALID_CONTEXT_IMPACT','Binding requires a bounded explicit impact and reason');
+      if(inspection.issues.some(e=>['STALE_BASIS','STALE_PLAN_CONFIRMATION'].includes(e.code)))contextError('CONTEXT_BINDING_BASIS_STALE','Repair unrelated basis and plan confirmation before binding');
+      // Binding also covers tasks in verification/acceptance/closeout. Validate
+      // their original implementation prerequisites against current records.
+      const phase=afterState.phase,refs=afterState.confirmation_refs;
+      afterState.phase=task.data.phase;afterState.confirmation_refs=[...getDoc(task.iteration+'/verification.md').records.values()].filter(r=>r.kind==='confirmation'&&(r.task===task.id||r.task===null)).map(r=>({path:task.iteration+'/verification.md',record_id:r.id}));
+      try{phaseGate();}finally{afterState.phase=phase;afterState.confirmation_refs=refs;}
+      const path=task.iteration+'/verification.md',definition={kind:'definition',path:task.iteration+'/tasks.md',sha256:definitionDigest(getDoc(task.iteration+'/tasks.md'))};
+      documents.set(path,documentBytes(path,getDoc(path).text+'\n### Context impact: '+data.impact+'\n\n'+quoteReason(data.reason)+'\n'));
+      append(contextBindingRecord(context,task,definition,request,operationId),path);break;
+    }
+    case 'task_revise':{
+      args(['iteration','task','expected_definition_sha256','reason','declaration']);
+      if(!task||data.iteration!==beforeState.current_iteration||data.task!==task.id||beforeState.status==='completed'||task.data.progress?.status==='completed')fail('Only the current unfinished task can be revised');
+      const path=task.iteration+'/tasks.md';if(data.expected_definition_sha256!==definitionDigest(getDoc(path)))fail('Task definition changed before revision');
+      if(typeof data.reason!=='string'||!data.reason.trim()||data.reason.length>4096||!data.declaration||typeof data.declaration!=='object'||Array.isArray(data.declaration)||Object.keys(data.declaration).some(k=>!['title','depends_on','requirements','delta_refs','scenario_refs','spec_change_reason','execution_mode','execution_reason','verification_policy'].includes(k)))fail('Invalid task declaration revision');
+      task={...task,data:{...data.declaration,phase:task.data.phase,progress:structuredClone(position)}};validateWorkflowRecord(task,path);documents.set(path,documentBytes(path,replaceWorkflowRecord(getDoc(path).text,task,path)));
+      const evidence=task.iteration+'/verification.md';documents.set(evidence,documentBytes(evidence,getDoc(evidence).text+'\n### Task revision: '+task.id+'\n\n'+quoteReason(data.reason)+'\n'));break;
+    }
     case 'record':{
-      args(['record']);let record=structuredClone(data.record);if(!['task','confirmation','check','review','blocker','resolution','closeout',...(request.operation_version===2?['spec_delta']:[])].includes(record?.kind))fail('Runtime position records cannot be registered by callers');
-      if(record.record_version!==request.operation_version)fail('Record and operation versions differ');
+      args(['record']);let record=structuredClone(data.record);if(!['task','confirmation','check','review','blocker','resolution','closeout','spec_delta'].includes(record?.kind))fail('Runtime position records cannot be registered by callers');
+      if(![1,2].includes(record.record_version))fail('Unsupported business record version');
       const path=record.iteration+'/'+(record.kind==='task'?'tasks.md':record.kind==='spec_delta'?'scope.md':'verification.md');validateWorkflowRecord(record,path);
       if(record.kind==='task'){if(record.data.progress!==undefined)fail('Task declarations cannot inject progress');record.data.progress=emptyPosition(record.data.phase);}
       if(record.data.artifacts&&!matches(record))fail('Record candidate artifacts are stale');append(record,path);break;
@@ -101,7 +141,9 @@ export function planWorkflowTransition(root,request,{operationId=randomUUID(),no
       break;
     }
     case 'confirm':{
-      args(['confirmation_refs'],['next_phase']);if(beforeState.status!=='awaiting_user')fail('Only waiting work can accept a confirmation');
+      args(['confirmation_refs'],['next_phase']);
+      if(repairConfirmation){if(data.next_phase!==undefined)fail('Stage confirmation repair must preserve the current phase and waiting');for(const purpose of new Set(stageConfirmations.map(r=>r.data.purpose)))confirmation(purpose,data.confirmation_refs);changePosition({confirmation_refs:uniqueRefs([...position.confirmation_refs,...data.confirmation_refs])});break;}
+      if(beforeState.status!=='awaiting_user')fail('Only waiting work can accept a confirmation');
       const purpose=beforeState.waiting_for==='scope_confirmation'?'scope':beforeState.waiting_for==='plan_confirmation'?'plan':beforeState.waiting_for;
       const selected=confirmation(purpose,data.confirmation_refs);
       if(purpose==='task_acceptance'){const key=checks();if(artifactsKey(selected.data.artifacts)!==key)fail('User acceptance names a different candidate');changePosition({phase:'closeout',status:'ready',waiting_for:null,confirmation_refs:data.confirmation_refs});}
@@ -110,7 +152,7 @@ export function planWorkflowTransition(root,request,{operationId=randomUUID(),no
     }
     case 'closeout':args([]);if(beforeState.phase!=='closeout'||beforeState.status!=='ready')fail('Closeout needs current accepted content');phaseGate();checks();changePosition({status:'running'});break;
     case 'spec_sync':{
-      args(['iteration','task']);if(task?.record_version!==2||request.operation_version!==2||data.iteration!==beforeState.current_iteration||data.task!==task.id||beforeState.phase!=='closeout'||!['ready','running'].includes(beforeState.status))fail('Specification synchronization needs the current accepted v2 task');
+      args(['iteration','task']);if(task?.record_version!==2||data.iteration!==beforeState.current_iteration||data.task!==task.id||beforeState.phase!=='closeout'||!['ready','running'].includes(beforeState.status))fail('Specification synchronization needs the current accepted v2 task');
       const acceptance=confirmation('task_acceptance',position.confirmation_refs),key=checks();if(artifactsKey(acceptance.data.artifacts)!==key)fail('Acceptance names a different candidate');
       if([...getDoc(task.iteration+'/verification.md').records.values()].some(r=>r.kind==='spec_sync'&&r.task===task.id))fail('Task already has a synchronization receipt; retry its original request');
       const acceptanceRef=position.confirmation_refs.find(ref=>ref.record_id===acceptance.id&&ref.path===task.iteration+'/verification.md');if(!acceptanceRef)fail('Task acceptance must be recorded in its verification document');
@@ -125,18 +167,21 @@ export function planWorkflowTransition(root,request,{operationId=randomUUID(),no
     case 'pause':args(['confirmation_ref','reason']);if(['paused','completed'].includes(beforeState.status))fail('This work cannot pause');{confirmation('pause',[data.confirmation_ref]);const saved=checkpoint(data.reason);changePosition({status:'paused',waiting_for:null,checkpoint_ref:saved});}break;
     case 'block':args(['blocker_refs','reason']);if(['paused','completed','blocked'].includes(beforeState.status)||!Array.isArray(data.blocker_refs)||!data.blocker_refs.length)fail('Blocking requires active work and evidence');for(const ref of data.blocker_refs){const record=getRef(ref,'blocker');if(!sameSubject(record))fail('Blocker names other work');}{const saved=checkpoint(data.reason);changePosition({status:'blocked',waiting_for:null,blocker_refs:data.blocker_refs,checkpoint_ref:saved});}break;
     case 'resume':{
-      args([],['resolution_ref']);if(!['paused','blocked'].includes(beforeState.status))fail('Only paused or blocked work can resume');const saved=getRef(beforeState.checkpoint_ref,'checkpoint');if(!sameSubject(saved)||saved.task!==beforeState.current_task)fail('Checkpoint names another task');
+      args([],['resolution_ref','verification_authorization_ref']);if(!['paused','blocked'].includes(beforeState.status))fail('Only paused or blocked work can resume');const saved=getRef(beforeState.checkpoint_ref,'checkpoint');if(!sameSubject(saved)||saved.task!==beforeState.current_task)fail('Checkpoint names another task');
       if(beforeState.status==='blocked'){const resolution=getRef(data.resolution_ref,'resolution');if(!sameSubject(resolution)||beforeState.blocker_refs.some(r=>!resolution.data.blockers.some(x=>x.path===r.path&&x.record_id===r.record_id))||!resolution.data.evidence.every(a=>checkArtifact(root,a,{read:readFile}).valid))fail('Blocker resolution is missing or stale');}
-      changePosition(structuredClone(saved.data.position));if(['ready','running'].includes(position.status))phaseGate();break;
+      if(data.verification_authorization_ref!==undefined){if(saved.data.position.phase!=='closeout'||!['ready','running'].includes(saved.data.position.status))fail('Authorized re-verification resume is limited to saved closeout');confirmation('operation_authorization',[data.verification_authorization_ref]);}
+      const repaired=beforeState.confirmation_refs.filter(ref=>stagePurposes.includes(getRef(ref,'confirmation').data.purpose));changePosition({...structuredClone(saved.data.position),confirmation_refs:uniqueRefs([...saved.data.position.confirmation_refs,...repaired])});
+      if(data.verification_authorization_ref!==undefined)changePosition({phase:'verify',status:'running',waiting_for:null,check_refs:[],review_refs:[],closeout_ref:null,confirmation_refs:position.confirmation_refs.filter(ref=>getRef(ref,'confirmation').data.purpose!=='task_acceptance')});
+      else if(['ready','running'].includes(position.status))phaseGate();break;
     }
     case 'refresh':args([]);if(task?.record_version===2)assertUnchangedSpecifications(view);if(['ready','running'].includes(beforeState.status))phaseGate();break;
     default:fail('Unknown semantic state operation');
   }
-  if(task&&afterState.current_task===task.id){task={...task,data:{...task.data,progress:structuredClone(position)}};const path=task.iteration+'/tasks.md';documents.set(path,Buffer.from(replaceWorkflowRecord(getDoc(path).text,task,path)));}
+  if(task&&afterState.current_task===task.id){task={...task,data:{...task.data,progress:structuredClone(position)}};const path=task.iteration+'/tasks.md';documents.set(path,documentBytes(path,replaceWorkflowRecord(getDoc(path).text,task,path)));}
   afterState.revision=beforeState.revision+1;afterState.updated_at=now;
-  if(afterState.current_iteration)append({record_version:task?.record_version||request.operation_version,id:'progress-'+operationId,kind:'progress',iteration:afterState.current_iteration,task:afterState.current_task,source:{role:'tool',reference:'operation:'+operationId,text:'State operation record; completion is subject to journal commit'},data:{operation:request.action,request_id:request.request_id,from_revision:beforeState.revision,to_revision:afterState.revision,position:structuredClone(position)}});
+  if(afterState.current_iteration)append({record_version:task?.record_version||1,id:'progress-'+operationId,kind:'progress',iteration:afterState.current_iteration,task:afterState.current_task,source:{role:'tool',reference:'operation:'+operationId,text:'State operation record; completion is subject to journal commit'},data:{operation:request.action,request_id:request.request_id,from_revision:beforeState.revision,to_revision:afterState.revision,position:structuredClone(position)}});
   const statePath='docs/workflow/state.yaml';
-  const basis=new Set([...beforeState.basis.map(x=>x.path),...view.raw.keys()].filter(path=>path!==statePath&&!path.startsWith('.ai-workflow/')&&readFile(path)!==null));
+  const basis=new Set([...beforeState.basis.map(x=>x.path),...view.raw.keys()].filter(path=>path!==statePath&&path!=='AGENTS.md'&&!path.startsWith('.agents/')&&!path.startsWith('.ai-workflow/')&&readFile(path)!==null));
   for(const path of documents.keys())basis.add(path);
   afterState.basis=[...basis].sort().map(path=>{const bytes=readFile(path);if(bytes===null)fail('Basis disappeared during planning');return {path,sha256:sha256(bytes)};});
   const stateBytes=encodeWorkflowState(view.text(statePath),afterState);
@@ -144,5 +189,5 @@ export function planWorkflowTransition(root,request,{operationId=randomUUID(),no
   const finalView=loadWorkflowView(root,{read:path=>path===statePath?stateBytes:readFile(path),inventory:afterInventory}),finalInspection=inspectWorkflowView(finalView);if(finalInspection.issues.some(x=>!['STALE_BASIS','STALE_PLAN_CONFIRMATION'].includes(x.code)))fail('Prepared state and documents are inconsistent: '+finalInspection.issues.map(x=>x.code).join(', '));
   const files=[...documents].map(([path,after])=>({path,kind:'file',before:view.readFile(path),after})).filter(file=>file.before===null||!file.before.equals(file.after));files.push({path:statePath,kind:'file',before:view.readFile(statePath),after:stateBytes});
   const reads=[...view.raw].map(([path,bytes])=>({path,sha256:bytes===null?null:sha256(bytes)}));
-  return {root,request,operationId,createdAt:now,beforeState,afterState,files,reads,...(inventories?{inventories,sync_ref}:{}),acceptance_verified:false,source_authenticity_verified:false};
+  return {root,request,operationId,createdAt:now,beforeState,afterState,files,reads,...(inventories?{inventories,sync_ref}:{}),...(context?{foundation_inventory:makeFoundationInventory(context.foundation.map(e=>e.path))}:{}),acceptance_verified:false,source_authenticity_verified:false};
 }

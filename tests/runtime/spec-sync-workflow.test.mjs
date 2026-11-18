@@ -10,8 +10,8 @@ import {digest,parseSpecification} from '../../src/spec-docs.mjs';
 
 test('spec sync workflow: v2 prepare through acceptance, synchronization and completion',async()=>{
   const f=await syncFixture({accepted:false});f.task.data.progress=emptyPosition('execute');f.write(iteration+'/tasks.md','# Tasks\n'+renderWorkflowRecord(f.task));
-  const initial={...f.current(),current_iteration:null,current_task:null,phase:null,status:'not_started',waiting_for:null,confirmation_refs:[],basis:[]};f.write('docs/workflow/state.yaml',JSON.stringify(initial));
-  f.apply('prepare',{iteration,task:'T1',confirmations:['scope','design','plan'].map(k=>ref('approved-'+k))});f.apply('start');f.apply('verify');
+  const initial={...f.current(),current_iteration:null,current_task:null,phase:null,status:'not_started',waiting_for:null,confirmation_refs:[],basis:f.current().basis.filter(e=>e.path.startsWith('docs/project/foundation/'))};f.write('docs/workflow/state.yaml',JSON.stringify(initial));
+  f.apply('prepare',{iteration,task:'T1',confirmations:['scope','design','plan'].map(k=>ref('approved-'+k))});f.bind();f.apply('start');f.apply('verify');
   f.apply('await',{waiting_for:'task_acceptance',check_refs:[ref('C1')],review_refs:[ref('R1')]});
   const before=snapshot(f.root,true);assert.throws(()=>f.apply('spec_sync',{iteration,task:'T1'}));assert.deepEqual(snapshot(f.root,true),before);
   f.apply('record',{record:record('A1','confirmation',{purpose:'task_acceptance',result:'approved',artifacts:f.artifacts,supersedes:[]})});f.apply('confirm',{confirmation_refs:[ref('A1')]});
@@ -59,7 +59,7 @@ test('spec sync workflow: a retired empty file accepts a later requirement with 
   const d=record('D2','spec_delta',{base:[{path:specPath,sha256:digest(f.read(specPath))}],new_spec_headers:[],operations:[{operation_id:'O2',action:'ADDED',path:specPath,requirement_id:'CAP-003',before_sha256:null,after_markdown:f.replacement.replaceAll('CAP-001','CAP-003'),removed_scenarios:[],reason:'Explicit later synthetic addition'}]},'T2');f.apply('record',{record:d});
   const definition=path=>({kind:'definition',path,sha256:definitionDigest(parseWorkflowDocument(f.read(path),path))}),artifacts=[f.artifacts[0],definition(iteration+'/scope.md'),definition(iteration+'/tasks.md')],approvals=[];
   for(const purpose of ['scope','design','plan']){const id='T2-'+purpose;f.apply('record',{record:record(id,'confirmation',{purpose,result:'approved',artifacts:[definition(iteration+'/'+(purpose==='plan'?'tasks':purpose)+'.md')],supersedes:[]},null)});approvals.push(ref(id));}
-  f.apply('prepare',{iteration,task:'T2',confirmations:approvals});f.apply('start');f.apply('verify');
+  f.apply('prepare',{iteration,task:'T2',confirmations:approvals});f.bind();f.apply('start');f.apply('verify');
   f.apply('record',{record:record('C2','check',{result:'passed',command:'Explicit synthetic check, not actual execution',exit_code:0,test_count:1,evidence:[{kind:'file',path:'evidence.txt',sha256:digest(f.read('evidence.txt'))}],artifacts,covers:[scene]},'T2')});
   f.apply('record',{record:record('R2','review',{result:'passed',context_id:'fixture:T2-independent',must_fix_open:0,artifacts,covers:[scene],mode:'independent'},'T2')});f.apply('await',{waiting_for:'task_acceptance',check_refs:[ref('C2')],review_refs:[ref('R2')]});
   f.apply('record',{record:record('A2','confirmation',{purpose:'task_acceptance',result:'approved',artifacts,supersedes:[]},'T2')});f.apply('confirm',{confirmation_refs:[ref('A2')]});f.apply('spec_sync',{iteration,task:'T2'});assert.match(f.read(specPath),/CAP-003/);assert.ok(!f.read(specPath).includes('CAP-001'));
@@ -73,7 +73,8 @@ test('spec sync workflow: an oversized recovery plan is rejected before any writ
   f.write(iteration+'/scope.md','# Scope\n'+renderWorkflowRecord(f.delta));f.write(iteration+'/tasks.md','# Tasks\n'+renderWorkflowRecord(f.task));
   const artifacts=[f.artifacts[0],...['scope','tasks'].map(name=>{const path=iteration+'/'+name+'.md';return {kind:'definition',path,sha256:definitionDigest(parseWorkflowDocument(f.read(path),path))};})],verification=parseWorkflowDocument(f.read(iteration+'/verification.md'),iteration+'/verification.md');
   for(const r of verification.records.values())if(['check','review'].includes(r.kind)||r.kind==='confirmation'&&r.data.purpose==='task_acceptance'){r.data.artifacts=artifacts;if(r.data.covers)r.data.covers=f.task.data.scenario_refs;}
-  f.write(verification.path,'# Verification\n'+[...verification.records.values()].map(renderWorkflowRecord).join('\n'));const state=f.current();state.basis=[...state.basis.map(x=>x.path),...targets].map(path=>({path,sha256:digest(f.read(path))}));f.write('docs/workflow/state.yaml',JSON.stringify(state));
+  for(const r of verification.records.values())if(r.kind==='confirmation'&&['scope','plan'].includes(r.data.purpose)){const path=iteration+'/'+(r.data.purpose==='plan'?'tasks':'scope')+'.md';r.data.artifacts=[{kind:'definition',path,sha256:definitionDigest(parseWorkflowDocument(f.read(path),path))}];}
+  f.write(verification.path,'# Verification\n'+[...verification.records.values()].map(renderWorkflowRecord).join('\n'));const state=f.current();state.basis=[...state.basis.map(x=>x.path),...targets].map(path=>({path,sha256:digest(f.read(path))}));f.write('docs/workflow/state.yaml',JSON.stringify(state));f.bind();
   const before=snapshot(f.root,true);assert.throws(()=>planWorkflowOperation(f.root,f.syncRequest()),/log.*(?:budget|limit|large)/iu);assert.deepEqual(snapshot(f.root,true),before);
 });
 test('spec sync workflow: planned new directories must fit the existing inventory limit',async()=>{

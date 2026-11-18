@@ -10,7 +10,7 @@
 
 ## 写入与历史
 
-落盘前回读真实路径和当前内容，保留编号、任务顺序、已有成果、历史检查及验收。普通说明只改当前请求覆盖的资料；关键冲突保留现场。受管state、progress、checkpoint及同步收据通过真实transition/spec sync/recover维护，不直接编辑、倒退revision或删除未知锁/日志。
+落盘前回读真实路径和当前内容，保留编号、任务顺序、已有成果、历史检查及验收。普通说明只改当前请求覆盖的资料；关键冲突保留现场。当前任务声明修订用v3 task_revise和全表definition前像，不手改结构化记录，不改任务身份、phase/progress或历史任务。受管state、progress、checkpoint、上下文绑定及同步收据通过真实transition/context bind/spec sync/recover维护，不直接编辑、倒退revision或删除未知锁/日志。
 
 绑定当前任务候选时，列出实际改动、检查证据与scope/tasks定义，再用 `artifacts inspect --path <文件> --json` 取得可引用摘要；定义加 `--kind definition`。写入范围核对使用宿主差异或已有清单，只在整库审计目标需要时展开全部文件清单。普通局部功能的候选摘要随涉及文件准备。
 

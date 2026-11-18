@@ -17,7 +17,7 @@ export function recoverProject(projectRoot,{mode,packageRoot,operationId,expecte
   }else if(mode==='refresh'){
     if(operationId!==undefined||packageRoot!==undefined||!Number.isSafeInteger(expectedRevision)||typeof requestId!=='string')fail('Refresh requires an exact revision and stable request ID');
     const view=loadWorkflowView(root),task=view.state.current_task?view.getTask(view.state.current_iteration,view.state.current_task):null;
-    const request={operation_version:task?.record_version===2?2:1,request_id:requestId,expected_revision:expectedRevision,action:'refresh',data:{}};
+    const request={operation_version:3,request_id:requestId,expected_revision:expectedRevision,action:'refresh',data:{}};
     if(preview){const inspection=diagnoseProject(root);if(inspection.findings.some(f=>['operation','resource','installation','version'].includes(f.category)&&f.severity==='error'))fail('Pending or invalid framework inputs prevent refresh');const plan=planWorkflowOperation(root,request);return {action:'preview',kind:'refresh',revision:plan.beforeState.revision,targets:plan.files.map(f=>({path:f.path,kind:f.kind,action:'refresh'})),acceptance_verified:false};}
     operation=applyWorkflowTransition(root,request,{io});
   }else{

@@ -11,11 +11,22 @@ import recordSchema from '../schemas/workflow-record-v1.schema.json' with { type
 import recordSchema2 from '../schemas/workflow-record-v2.schema.json' with {type:'json'};
 import navigation from '../templates/navigation.json' with { type: 'json' };
 import {skillNames} from './skill-names.mjs';
-import {inspectSkillResources,skillPolicy,providerResources} from './skill-resources.mjs';
+import {inspectSkillResources,skillPolicy,providerResources,skillPackagePaths} from './skill-resources.mjs';
+import {isUserPackageResource, userGuidePaths} from './document-links.mjs';
+import {exampleFiles} from './example-resources.mjs';
 export {skillNames} from './skill-names.mjs';
 const fail = message => { throw new WorkflowError('PACKAGE_INVALID', message); };
 const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
+export function userPackageResources(skillManifest=skillPolicy){
+  return new Set(['resource-manifest.json','package.json','bin/iterlane.mjs','runtime/cli.mjs','dependency-manifest.json',
+    'README.md','LICENSE','THIRD_PARTY_NOTICES.md',...userGuidePaths,...skillPackagePaths(skillManifest),
+    'resources/sources/catalog.yaml','resources/sources/openspec-NOTICE.md',
+    'resources/schemas/state-v1.schema.json','resources/schemas/workflow-record-v1.schema.json','resources/schemas/workflow-record-v2.schema.json',
+    'resources/templates/manifest.json','resources/templates/navigation.json',
+    ...[...templateLayout.empty_files,...templateLayout.seed_files,...templateLayout.directory_placeholders].map(path=>'resources/templates/project/'+path),
+    ...exampleFiles.map(path=>'resources/examples/bookmarks/'+path)]);
+}
 
 export function checkPackage(root,{skillManifest=skillPolicy,sharedDigests}={}) {
   const manifestFile = resolveRegularFile(root, 'resource-manifest.json');
@@ -39,10 +50,14 @@ export function checkPackage(root,{skillManifest=skillPolicy,sharedDigests}={}) 
   const actual = listRegularFiles(root).filter(path => path !== 'resource-manifest.json');
   const expected = manifest.files.map(entry => entry.path).sort();
   if (JSON.stringify(actual) !== JSON.stringify(expected)) fail('Resource inventory contains missing or unlisted files');
+  const declared=userPackageResources(skillManifest),excluded = expected.filter(path => !isUserPackageResource(path, declared));
+  if (excluded.length) fail('Package contains undeclared user resources: ' + excluded.join(', '));
   const mandatory = ['package.json', 'bin/iterlane.mjs', 'runtime/cli.mjs', 'resources/schemas/state-v1.schema.json', 'resources/sources/catalog.yaml', 'resources/sources/README.md', 'resources/templates/manifest.json', 'resources/templates/navigation.json', 'dependency-manifest.json', 'THIRD_PARTY_NOTICES.md', 'README.md'];
   mandatory.push('resources/schemas/workflow-record-v1.schema.json');
   mandatory.push('resources/schemas/workflow-record-v2.schema.json','resources/sources/openspec-NOTICE.md');
   mandatory.push('resources/skills/_shared/manifest.json','resources/skills/_shared/resource-index.json');
+  mandatory.push(...userGuidePaths);
+  mandatory.push(...skillPackagePaths(skillManifest));
   for(const name of skillNames)for(const resource of providerResources(skillManifest,name))mandatory.push('resources/skills/'+name+'/'+resource);
   for (const path of [...templateLayout.empty_files, ...templateLayout.seed_files, ...templateLayout.directory_placeholders]) mandatory.push('resources/templates/project/' + path);
   for (const name of skillNames) mandatory.push(`resources/skills/${name}/SKILL.md`, `resources/skills/${name}/NOTICE.md`);

@@ -24,6 +24,17 @@ export function validateSkillManifest(value){
 }
 export const skillPolicy=validateSkillManifest(policy);
 export function providerResources(manifest,provider){return [...new Set(provider===manifest.entry.provider?manifest.entry.required_resources:manifest.capabilities.filter(c=>c.provider===provider).flatMap(c=>c.required_resources))].sort();}
+export function sharedGeneratedPath(resource){return resource.source==='@capabilities'?'references/capabilities.json':resource.source==='@rules'?'references/rules.json':null;}
+export function sharedSourcePaths(manifest=skillPolicy){
+  const generated=new Set(manifest.shared_resources.map(sharedGeneratedPath).filter(Boolean));
+  return [...new Set(['manifest.json',...manifest.shared_resources.filter(r=>!r.source.startsWith('@')).map(r=>r.source),
+    ...manifest.rules.flatMap(rule=>rule.resources.map(link=>link.split('#')[0]))])].filter(path=>!generated.has(path)).sort();
+}
+export function skillPackagePaths(manifest=skillPolicy){
+  return ['resources/skills/_shared/resource-index.json',...sharedSourcePaths(manifest).map(path=>'resources/skills/_shared/'+path),
+    ...manifest.shared_resources.map(sharedGeneratedPath).filter(Boolean).map(path=>'resources/skills/_shared/'+path),
+    ...skillNames.flatMap(name=>['SKILL.md','NOTICE.md',...providerResources(manifest,name)].map(path=>'resources/skills/'+name+'/'+path))];
+}
 export function sharedResourceBytes(manifest,resource,read){
   if(resource.source==='@capabilities')return Buffer.from(JSON.stringify({schema_version:1,entry_provider:manifest.entry.provider,capabilities:manifest.capabilities.map(({required_resources,...c})=>c)},null,2)+'\n');
   if(resource.source==='@rules')return Buffer.from(JSON.stringify({schema_version:1,rules:manifest.rules},null,2)+'\n');
@@ -70,6 +81,7 @@ export function inspectSkillResources(root,{installed=false,expectedDigests,expe
       const source=sharedResourceBytes(parsed,r,path=>fs.readFileSync(resolveRegularFile(shared,path))),hash=digest(source),item=index.resources.find(x=>x.id===r.id);
       if(hash!==expected[r.id]||!item||!exact(item,['id','source','target','sha256','providers'])||item.source!==r.source||item.target!==r.target||item.sha256!==hash)fail('Shared source or generated index differs');
       const targets=skillNames.filter(name=>providerResources(parsed,name).includes(r.target));if(!isDeepStrictEqual(item.providers,targets))fail('Shared resource consumers differ');
+      const generated=sharedGeneratedPath(r);if(generated&&digest(fs.readFileSync(resolveRegularFile(shared,generated)))!==hash)note('SHARED_RESOURCE_DRIFT','Shared guide data differs from its declared source','_shared/'+generated);
       for(const name of targets){const bytes=fs.readFileSync(resolveRegularFile(join(providers,name),r.target));if(digest(bytes)!==hash)note('SHARED_RESOURCE_DRIFT','Generated common resource differs from its single source',name+'/'+r.target);}
     }
     for(const rule of parsed.rules)for(const link of rule.resources){const [path,fragment]=link.split('#'),body=decode(fs.readFileSync(resolveRegularFile(shared,path)));if(fragment&&!markdownLines(body).rows.some(row=>!row.hidden&&heading(row.line)&&slug(heading(row.line).title)===fragment))fail('Rule points to a missing source heading');}

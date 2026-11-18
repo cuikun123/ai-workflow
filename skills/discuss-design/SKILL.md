@@ -2,7 +2,7 @@
 name: discuss-design
 description: "用于采用 ai-workflow 的讨论，在用户需要从产品、体验、技术、运行等相关角度比较方案、质疑取舍或明确分歧时。正式独立审查和实际并行实施不使用。"
 metadata:
-  version: "0.3.2"
+  version: "0.3.3"
   capability: "design_discussion"
 ---
 

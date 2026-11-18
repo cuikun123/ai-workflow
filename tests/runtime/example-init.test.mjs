@@ -1,10 +1,12 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import {join} from 'node:path';import {spawnSync} from 'node:child_process';
 import {resourcePackage,project,snapshot} from '../helpers/installation.mjs';import {initializeProject} from '../../src/installation.mjs';
 import {validateStateYaml} from '../../src/state.mjs';
+import {brokenDocumentLinks} from '../helpers/document-links.mjs';
 test('example init: explicit preview is zero-write and installed example runs without fake task approval',async()=>{
  const pkg=await resourcePackage(),root=project(),run=args=>spawnSync(process.execPath,[join(pkg,'bin/iterlane.mjs'),'init','--project',root,'--example','bookmarks',...args,'--json'],{encoding:'utf8',windowsHide:true,timeout:60000});
  const before=snapshot(root,true),preview=run(['--preview']);assert.equal(preview.status,0,preview.stdout+preview.stderr);assert.deepEqual(snapshot(root,true),before);const result=run([]);assert.equal(result.status,0,result.stdout+result.stderr);
  const state=validateStateYaml(fs.readFileSync(join(root,'docs/workflow/state.yaml'),'utf8'));assert.equal(state.current_task,null);assert.equal(state.status,'not_started');assert(fs.existsSync(join(root,'scripts/check.mjs')));
+ assert.deepEqual(brokenDocumentLinks(root, ['README.md']), [], 'The example guide must link to installed documentation');
  const checked=spawnSync(process.execPath,['scripts/check.mjs'],{cwd:root,encoding:'utf8',windowsHide:true,timeout:60000});assert.equal(checked.status,0,checked.stdout+checked.stderr);const report=JSON.parse(checked.stdout);assert.equal(report.passed,true);assert(report.test_count>0);assert(fs.existsSync(join(root,report.evidence[0])));
  const saved=snapshot(root,true),repeat=run([]);assert.notEqual(repeat.status,0);assert.deepEqual(snapshot(root,true),saved);
 });

@@ -27,11 +27,11 @@
 
 先运行项目内`check --json`。查询使用`node .ai-workflow/bin/iterlane.mjs status --json`，必要时用`check --documents --json`核对记录、需求及本地链接。原始state、真实tasks/verification和必要依据仍须回读，不能只凭声明状态继续。
 
-实际获准写入时，原主流程准备严格JSON操作文件，再运行`node .ai-workflow/bin/iterlane.mjs transition --input <file> --json`。每份操作含以下字段，未知字段和通用set-state不支持：
+实际获准写入时，原主流程准备严格JSON操作文件，再运行`node .ai-workflow/bin/iterlane.mjs transition --input <file> --json`。新包的全部工作流写操作统一使用operation_version=3；业务record_version仍为1或2，不跟着操作版本改成3。旧operation v1/v2仅可诊断，未完成写入由匹配旧工具恢复。每份操作含以下字段，未知字段和通用set-state不支持：
 
 ```json
 {
-  "operation_version": 1,
+  "operation_version": 3,
   "request_id": "本次稳定的ASCII请求ID",
   "expected_revision": 0,
   "action": "record",
@@ -46,7 +46,9 @@
 | record | record：完整记录对象；只追加task/confirmation/check/review/blocker/resolution/closeout，不能注入task.progress或自造checkpoint/progress |
 | prepare | iteration、task（无任务时null）、confirmations引用数组，可选phase；明确指定目标，不挑最新目录 |
 | select | prepare字段，加selection_ref；只有前项已完成/未开始或明确暂停且有有效选择依据时切换 |
-| start | 空对象；ready且当前必要确认/依赖具备 |
+| context_bind | iteration、task、expected_snapshot、impact（unaffected/affected）、reason；当前未完成任务、实际摘要与revision一致，工具同次写入影响说明与专用绑定记录 |
+| task_revise | iteration、task、expected_definition_sha256、reason、declaration；完整新声明保留当前任务ID/phase/progress，不注入progress或改其他/历史任务 |
+| start | 空对象；ready且当前必要确认/依赖与最新专用任务绑定具备 |
 | verify | 空对象；执行进入检查，待验收的候选需要重验时可回检查；已验收收尾阶段还需authorization_ref |
 | await | waiting_for；task_acceptance另含check_refs及review_refs数组，真实结果/版本仍由主流程核验 |
 | confirm | confirmation_refs数组；非验收可选next_phase，不能直接跳已完成 |
@@ -54,8 +56,20 @@
 | complete | closeout_ref；当前验收、检查/审查与规格/Git收尾记录内容须适用 |
 | pause | confirmation_ref（purpose=pause）、reason；只依据真实暂停/切换指令登记 |
 | block | blocker_refs数组、reason；保存原位置与等待事实 |
-| resume | 暂停时空对象；阻塞时resolution_ref；原等待验收仍恢复同一等待 |
+| resume | 暂停时空对象；阻塞时resolution_ref；原等待验收仍恢复同一等待。已保存的closeout需重验时另给verification_authorization_ref，须为当前实际operation_authorization |
 | refresh | 空对象；只在位置/引用可核实且无歧义时重绑定依据，不猜任务或改验收 |
+
+## 每任务读取与绑定
+
+1. 用context inspect取得当前公共规则、项目AGENTS和全部foundation原文，实际阅读并核对适用范围；保留返回snapshot_sha256。context guard的fresh只说明磁盘来源仍匹配，不能代替当前任务的专用绑定。
+2. 通过prepare/select选定当前已获准任务后，准备context bind：iteration/task取当前实际对象，expected-revision取实际status，request-id稳定，expected-snapshot用本次真实摘要；impact/reason说明实际影响。CLI为node .ai-workflow/bin/iterlane.mjs context bind --iteration <实际路径> --task <ID> --expected-snapshot <摘要> --expected-revision <n> --request-id <稳定ID> --impact unaffected --reason <真实理由> --preview --json。核对预览再去掉preview，成功后用返回revision准备start。
+3. 同一会话接续T2也必须核对T2自己的committed绑定，不能复用T1。已有对应任务、定义与当前snapshot相同的有效绑定可复用，不重复登记；查进度和独立小修改不伪造任务。
+4. 地基变化后重新inspect，核对现有授权、约定和实际影响。bind仅允许地基过时，不顺带刷新scope/design/tasks/verification等其他过时资料；先通过正式记录、确认或recover --refresh处理已核实的依据，再绑定。普通record/refresh不产生专用绑定，不能消除该门槛。
+5. 要修订当前任务声明时，用artifacts inspect --kind definition --path <当前tasks.md>取全表定义摘要，提交v3 task_revise。declaration填写该记录版本全部声明字段，去掉phase/progress；工具保留它们及身份。修订不批准新定义，重新登记适用方案/计划确认（必要时await plan_confirmation再confirm），之后bind/start。不要先verify来绕过过时绑定，不手改JSON或沿用失效验收。
+
+任务处于paused、blocked或待验收时，修订后先record真实的新scope/design/plan确认，再用confirm仅提交这些confirmation_refs，不传next_phase。该修复只接纳适用确认，保留phase/status/waiting_for、checkpoint和blocker；随后context bind，暂停/阻塞仍须原resume（阻塞须有效resolution），待验收仍保留等待并按需要重新verify。不要用新的计划确认冒充task_acceptance或绕过暂停。已验收收尾任务暂停后发生声明变化，普通resume不能沿用失效验收；具备当前operation_authorization时，可用resume的verification_authorization_ref直接恢复到verify，阻塞仍须resolution。该动作清空原检查/审查/收尾引用，保留历史验收记录，不自动验收或实施。
+
+start、resume、verify、交验收、接受验收、closeout/spec_sync/complete会重新核对绑定。工具提供并绑定资料，不认证AI已理解或业务检查通过；绑定的observation不能塞进产品check_refs替代必测项。客户端自动注入尚属后续接入阶段，当前按本节显式调用。
 
 ## 记录格式
 

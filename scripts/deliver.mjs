@@ -5,7 +5,8 @@ import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {listRegularFiles,resolveRegularFile,isWithin,assertSafeRoot} from '../src/paths.mjs';
 import {copyExample} from '../src/example-resources.mjs';
-import metadata from '../package.json' with {type:'json'};
+import {copyDeliveryDocuments} from './package-docs.mjs';
+import {checkPackage} from '../src/package.mjs';
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const fail=(code,message)=>{const error=new Error(message);error.deliveryCode=code;throw error;};
 const run=(command,args,options={})=>{const r=spawnSync(command,args,{encoding:'utf8',windowsHide:true,timeout:60000,...options});if(r.status!==0)fail('TOOL_FAILED','Delivery tool failed: '+command);return r.stdout;};
@@ -16,6 +17,7 @@ function validateSource(root,expected){
  if(manifest.kind!=='ai-workflow-resource-package'||manifest.package.name!=='iterlane'||pkg.name!=='iterlane'||pkg.version!==manifest.package.version||!Array.isArray(manifest.files))fail('SOURCE_MISMATCH','Source package identity differs');
  const wanted=['resource-manifest.json',...manifest.files.map(e=>e.path)].sort();if(JSON.stringify(wanted)!==JSON.stringify(paths))fail('SOURCE_MISMATCH','Source inventory differs');
  for(const e of manifest.files){const content=fs.readFileSync(resolveRegularFile(root,e.path));if(content.length!==e.bytes||hash(content)!==e.sha256)fail('SOURCE_MISMATCH','Source bytes differ');}
+ checkPackage(root);
  // Only execute a source explicitly selected and pinned by the caller.
  const checked=JSON.parse(run(process.execPath,[join(root,'bin/iterlane.mjs'),'check','--json']));if(!checked.ok||checked.version!==pkg.version)fail('SOURCE_MISMATCH','Source runtime check did not match');
  return pkg;
@@ -34,7 +36,10 @@ export function assembleDelivery({packageRoot,expectedManifest,outputDir}){
  fs.copyFileSync(join(source,'LICENSE'),join(stage,'LICENSE'));
  fs.writeFileSync(join(stage,'README.md'),'# Iterlane 试用包\n\n安装版本：'+pkg.version+'。本包用于内部试用，完整工具位于runtime，参考应用位于examples/bookmarks。\n\n先按quickstart.md在新目录安装，再向项目中的AI提出需求。运行例子不预置你的业务批准或验收。\n');
  fs.writeFileSync(join(stage,'quickstart.md'),'# 开始试用\n\n准备Node.js 24.18.0，将本ZIP解压并在解压目录打开终端。runtime已经是完整工具，无需再解开tgz。\n\n```powershell\nnode runtime/bin/iterlane.mjs check --json\nmkdir my-new-project\nnode runtime/bin/iterlane.mjs init --project my-new-project --preview --json\nnode runtime/bin/iterlane.mjs init --project my-new-project --json\nnode my-new-project/.ai-workflow/bin/iterlane.mjs status --json\n```\n\n本包版本为'+pkg.version+'。核对预览后再安装；当前仅用于本地新项目，不覆盖旧业务目录。打开新项目创建AI会话，先做只读状态查询，再提出自己的需求。\n\n想看应用：\n\n```powershell\nnode examples/bookmarks/server.mjs\n```\n\n终端打印端口后，在浏览器打开对应localhost地址，试添加收藏、刷新和重启后数据保留。按Ctrl+C结束。若要改应用，将examples/bookmarks内的业务源码复制到自己的新项目，不复制项目状态或批准。\n');
- if(pkg.version===metadata.version){const guide=fs.readFileSync(join(repo,'docs/quickstart.md'),'utf8').replaceAll('../scripts/README.md','runtime/README.md').replaceAll('../tests/README.md','README.md');fs.writeFileSync(join(stage,'quickstart.md'),guide);}
+ if(fs.existsSync(join(source,'docs/quickstart.md'))&&fs.existsSync(join(source,'docs/usage.md'))){
+  copyDeliveryDocuments(source,stage);
+  fs.writeFileSync(join(stage,'README.md'),'# Iterlane 试用包\n\n版本：'+pkg.version+'。本包用于内部试用；runtime/ 包含完整工具，examples/bookmarks/ 提供参考应用。\n\n先按[快速开始](docs/quickstart.md)安装到新项目，再读[使用指南](docs/usage.md)完成需求、实施、检查和用户验收。命令见[工具参考](scripts/README.md)，当前边界见[版本与支持范围](docs/releasing.md)。\n\n文档来自本次明确指定并校验摘要的工具包。教学对话与示例不表示业务批准或验收；安装说明不保证模型连接或所有客户端可用。\n\n[安全反馈](SECURITY.md) · [MIT 许可](LICENSE)。第三方完整许可在 runtime/THIRD_PARTY_NOTICES.md 与技能 NOTICE.md。\n');
+ }
  const entries=listRegularFiles(stage).map(path=>({path,sha256:hash(fs.readFileSync(join(stage,path)))}));
  fs.writeFileSync(join(stage,'SHA256SUMS'),entries.map(e=>e.sha256+'  '+e.path).join('\n')+'\n');
  const archive=join(out,'iterlane-'+pkg.version+'-trial.zip');run('tar',['-a','-cf',archive,'-C',stage,...fs.readdirSync(stage).sort()]);

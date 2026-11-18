@@ -2,7 +2,7 @@
 name: handle-incident
 description: "用于采用 ai-workflow 文档体系的项目，在收到线上故障反馈、需要明确调查范围、开展获准调查或交接已同意的修复方案时。当前发布失败回退交 release。"
 metadata:
-  version: "0.3.2"
+  version: "0.3.3"
   capability: "incident"
 ---
 

@@ -1,6 +1,6 @@
 # v2记录与验收后规格工具
 
-本参考用于新任务的结构化计划、检查与收尾。完整新包支持record/operation v2，state仍为v1；已有v1任务沿[原状态协议](state-runtime.md)处理，不自动迁移。旧默认仍是test_suite与independent；明确声明政策的新v2任务可使用direct/light/full及对应检查。流程判断见[选择方法](routing.md)。
+本参考用于新任务的结构化计划、检查与收尾。完整新包保留业务record v1/v2，所有新工作流写入统一operation v3，state仍为v1；已有v1任务沿[状态协议](state-runtime.md)处理，不迁移业务记录。旧operation v1/v2不在新包中写入。旧默认仍是test_suite与independent；明确声明政策的新v2任务可使用direct/light/full及对应检查。流程判断见[选择方法](routing.md)。
 
 ## 先取得真实摘要
 
@@ -10,13 +10,13 @@
 
 ## 任务与增量输入
 
-所有记录共用record_version=2、id、kind、iteration、task、source和data。source的role/reference/text定位真实且相关指令、检查或审查；字段存在不认证来源。准备action=record的操作：operation_version=2、稳定request_id、从status取得的expected_revision、data.record完整对象。
+所有记录共用record_version=2、id、kind、iteration、task、source和data。source的role/reference/text定位真实且相关指令、检查或审查；字段存在不认证来源。准备action=record的操作：operation_version=3、稳定request_id、从status取得的expected_revision、data.record完整对象。
 
 任务kind=task放tasks.md，task等于id；data有title、phase、depends_on、requirements、delta_refs、scenario_refs及spec_change_reason。scenario_refs项为requirement_id/scenario_id，delta_refs与depends_on用path/record_id引用；进度由工具生成，不注入progress。新任务另给execution_mode、非空execution_reason和verification_policy（required_check_types、required_scenario_refs、review_mode）；业务引用/增量及发布维护不能用direct，full/业务任务不能用simplified。
 
 范围中的spec_delta有同轮task归属。data.base列path/文件sha256（新文件null），new_spec_headers列新文件path/markdown，operations列operation_id、action、path、requirement_id、before_sha256、after_markdown、removed_scenarios和reason。ADDED无旧区段，MODIFIED提供完整替换，REMOVED明确全部移除场景；新文件需显式Purpose/Scope/Requirements头。
 
-任务与delta归属在展示范围/设计/计划时一起核对；可以准备草案，真实确认后才实施。记录注册次序可先task再delta，全部关联齐全后再次spec check、获取最终definition摘要。不要把补写字段当新批准或把未确认变化自动改绑旧确认。政策/定义变化会使原计划确认失效，status/spec指出STALE_PLAN_CONFIRMATION；先进入verify并等待真实新计划确认，不能用refresh或新check替代批准。缺失必需证据仍不能进入验收。
+任务与delta归属在展示范围/设计/计划时一起核对；可以准备草案，真实确认后才实施。记录注册次序可先task再delta，全部关联齐全后再次spec check、获取最终definition摘要。不要把补写字段当新批准或把未确认变化自动改绑旧确认。政策/定义变化会使原计划确认失效，status/spec指出STALE_PLAN_CONFIRMATION；按[state-runtime](state-runtime.md#每任务读取与绑定)通过task_revise修订声明、登记适用的新计划确认，再bind/start/verify；不能用refresh、新check或直接verify替代批准与绑定。缺失必需证据仍不能进入验收。
 
 ## 检查与验收记录
 
@@ -24,7 +24,7 @@ v2 check通过check_type声明test_suite/command/observation。test_suite需实�
 
 候选artifacts共同包含实际产物、tasks definition及delta所在scope definition。确认、检查与审查引用相同当前内容；不绑定会变化的有效spec、state或生成记录。真实task_acceptance confirmation仍用purpose/result/artifacts/supersedes，不能把AI报告作为用户验收。
 
-共用prepare/start/verify/await/confirm/closeout等语义动作沿state-runtime的data形状，operation_version取2；v2 record另支持spec_delta。record操作成功后使用返回revision继续，引用仍按path/record_id。待验收保持等待，明确confirm后才进入closeout。
+共用prepare/start/verify/await/confirm/closeout等语义动作沿state-runtime的data形状，operation_version取3；v2 record另支持spec_delta。record操作成功后使用返回revision继续，引用仍按path/record_id。待验收保持等待，明确confirm后才进入closeout。
 
 ## 同步与完成
 

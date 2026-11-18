@@ -14,6 +14,7 @@ required.push('tests/codex-client/evaluate.test.mjs');
 required.push('tests/codex-client/coverage.test.mjs');
 required.push('tests/runtime/git-line-endings.test.mjs');
 required.push('tests/runtime/workflow-docs.test.mjs','tests/runtime/workflow-artifacts.test.mjs','tests/runtime/workflow-status.test.mjs','tests/runtime/workflow-transitions.test.mjs','tests/runtime/workflow-recovery.test.mjs','tests/runtime/workflow-cli.test.mjs');
+required.push('tests/runtime/foundation-context.test.mjs','tests/runtime/context-binding.test.mjs');
 required.push('tests/codex-client/state-events.test.mjs');
 required.push('tests/runtime/diagnostics.test.mjs','tests/runtime/recovery.test.mjs','tests/runtime/diagnostics-cli.test.mjs');
 required.push('tests/codex-client/doctor-evaluate.test.mjs');

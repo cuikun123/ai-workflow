@@ -2,7 +2,7 @@
 name: build-foundation
 description: "用于采用 ai-workflow 文档体系的项目，在已确定或需要明确最小工程范围时建立、补齐并验证工程地基。仅安装框架入口或普通功能开发不使用。"
 metadata:
-  version: "0.3.2"
+  version: "0.3.3"
   capability: "foundation"
 ---
 

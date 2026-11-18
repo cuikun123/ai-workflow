@@ -2,7 +2,7 @@
 name: workflow-guide
 description: "用于采用Iterlane的项目，在请求开始/继续已有工作、定位当前成果、查询状态或处理工作流中断时。目标明确且无需工作流管理的独立拼写/排版不自动启用；显式点名时仍可使用入口。"
 metadata:
-  version: "0.3.2"
+  version: "0.3.3"
 ---
 
 # 定位工作与按需交接

@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { checkPackage, skillNames } from '../../src/package.mjs';
 import { snapshot } from '../helpers/installation.mjs';
+import {brokenDocumentLinks} from '../helpers/document-links.mjs';
+import {assertUserPackage} from '../helpers/user-package.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), 'workflow distribution 中文 '));
@@ -30,6 +32,10 @@ test('distribution: build complete package then run offline after real npm pack/
   const unpacked = spawnSync('tar', ['-xzf', tarball, '-C', extracted], { encoding: 'utf8', windowsHide: true });
   assert.equal(unpacked.status, 0, unpacked.stderr);
   const root = join(extracted, 'package'), cli = join(root, 'bin/iterlane.mjs');
+  assert.ok(existsSync(join(root, 'docs/usage.md')), 'The offline package must include the usage tutorial');
+  assert.ok(existsSync(join(root, 'scripts/README.md')), 'Command links must lead to the command reference');
+  assertUserPackage(root);
+  assert.deepEqual(brokenDocumentLinks(root), [], 'Offline document links must stay within the complete package');
   const original = hash(join(root, 'resource-manifest.json'));
   const env = { ...process.env, NODE_PATH: '', HTTP_PROXY: 'http://127.0.0.1:1', HTTPS_PROXY: 'http://127.0.0.1:1' };
   const checked = run(cli, ['check', '--json'], { cwd: scratch, env });
@@ -81,6 +87,31 @@ test('distribution: deterministic rebuild refuses unrelated directories and sour
   assert.notEqual(run(join(repo, 'scripts/build.mjs'), ['--out', repo], { cwd: repo }).status, 0);
 });
 
+test('distribution: a rehashed manifest cannot admit unlisted user documents', () => {
+  assert.equal(build().status, 0);
+  for (const [index,path] of ['docs/private-maintenance.md', 'docs/PRIVATE.MD', 'docs/maintenance.txt',
+    'resources/sources/developer-notes.txt', 'resources/templates/developer-notes.txt',
+    'resources/skills/workflow-guide/README.md', 'runtime/maintenance.txt', 'tests/validation.txt', 'AGENTS.txt'].entries()) {
+    const root = join(scratch, 'maintenance-injection-' + index); cpSync(dist, root, {recursive:true});
+    mkdirSync(dirname(join(root,path)),{recursive:true}); writeFileSync(join(root,path), '# Private maintenance notes\n');
+    const manifestPath=join(root,'resource-manifest.json'), manifest=JSON.parse(readFileSync(manifestPath,'utf8'));
+    manifest.files.push({path,bytes:readFileSync(join(root,path)).length,sha256:hash(join(root,path))});
+    writeFileSync(manifestPath,JSON.stringify(manifest));
+    assert.throws(()=>checkPackage(root), error=>error.code==='PACKAGE_INVALID', path);
+  }
+});
+
+test('distribution: shared-guide data remains bound after manifest rehash', () => {
+  assert.equal(build().status,0);
+  const root=join(scratch,'shared-data-injection');cpSync(dist,root,{recursive:true});
+  const path='resources/skills/_shared/references/capabilities.json';
+  writeFileSync(join(root,path),'{"schema_version":1,"entry_provider":"wrong"}\n');
+  const manifestPath=join(root,'resource-manifest.json'),manifest=JSON.parse(readFileSync(manifestPath,'utf8'));
+  const entry=manifest.files.find(e=>e.path===path)||{path};entry.bytes=readFileSync(join(root,path)).length;entry.sha256=hash(join(root,path));
+  if(!manifest.files.some(e=>e.path===path))manifest.files.push(entry);writeFileSync(manifestPath,JSON.stringify(manifest));
+  assert.throws(()=>checkPackage(root),error=>error.code==='PACKAGE_INVALID');
+});
+
 test('distribution: internally consistent manifests cannot disguise mixed runtime identities or schemas', () => {
   assert.equal(build().status, 0);
   const scenarios = [
@@ -120,6 +151,8 @@ test('distribution: real npm artifact initializes and checks a project offline w
   const init = run(cli, ['init', '--project', root, '--json'], { cwd: scratch, env });
   assert.equal(init.status, 0, init.stdout + init.stderr);
   assert.equal(JSON.parse(init.stdout).data.client_validation, 'not_run');
+  assertUserPackage(join(root, '.ai-workflow'), root);
+  assert.deepEqual(brokenDocumentLinks(root, ['.ai-workflow/README.md', '.ai-workflow/docs/README.md']), [], 'Installed guides must follow the actual project skill locations');
   const installed = join(root, '.ai-workflow/bin/iterlane.mjs');
   const before = snapshot(root, true);
   assert.equal(run(installed, ['check', '--json'], { cwd: scratch, env }).status, 0);

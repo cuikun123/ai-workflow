@@ -2,7 +2,7 @@
 name: execute-task
 description: "用于已有获准迭代任务的实施、恢复或验收反馈修复。独立且明确的低影响文案、只读请求不自动加载完整执行方法；仅规划、独立诊断/审查和部署请求由对应方法处理。"
 metadata:
-  version: "0.3.2"
+  version: "0.3.3"
   capability: "implementation"
 ---
 

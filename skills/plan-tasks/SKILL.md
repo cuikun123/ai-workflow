@@ -2,7 +2,7 @@
 name: plan-tasks
 description: "用于已有范围方案、需要安排或调整可验收任务与依赖。当前任务内明确的小技术步骤、不需要任务划分的独立小修改不另建整套计划。"
 metadata:
-  version: "0.3.2"
+  version: "0.3.3"
   capability: "planning"
 ---
 

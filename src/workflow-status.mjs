@@ -1,7 +1,9 @@
 import * as fs from 'node:fs';import {posix} from 'node:path';import {TextDecoder,isDeepStrictEqual} from 'node:util';
 import {projectPath,readProjectFile} from './project-paths.mjs';import {sha256} from './package.mjs';import {validateStateYaml} from './state.mjs';
-import {parseWorkflowDocument} from './workflow-docs.mjs';import {WorkflowError} from './errors.mjs';
+import {parseWorkflowDocument,parseStrictJson} from './workflow-docs.mjs';import {WorkflowError} from './errors.mjs';
 import {inspectSpecifications} from './spec-deltas.mjs';
+import {foundationRoot,readFoundationSnapshot} from './foundation-context.mjs';
+import {initialFoundationPaths} from './managed-blocks.mjs';
 
 const error=(code,message)=>{throw new WorkflowError(code,message);};
 export const emptyPosition=(phase='clarify')=>({phase,status:'not_started',waiting_for:null,checkpoint_ref:null,confirmation_refs:[],blocker_refs:[],check_refs:[],review_refs:[],closeout_ref:null});
@@ -27,6 +29,15 @@ export function inspectWorkflowView(view){
   const {state,root}=view,issues=[];
   const note=(code,message,path=null)=>issues.push({code,message,path});
   const visit=fn=>{try{return fn();}catch(e){note('INVALID_DOCUMENT',e.message);return null;}};
+  const foundationBasis=state.basis.filter(e=>e.path.startsWith(foundationRoot+'/'));
+  let foundationTracked=foundationBasis.length>0,foundationCurrent=true;
+  try{const raw=view.readFile('.ai-workflow/manifest.json');if(raw){const manifest=parseStrictJson(new TextDecoder('utf-8',{fatal:true}).decode(raw));foundationTracked ||= manifest.state_document_paths?.some(path=>typeof path==='string'&&path.startsWith(foundationRoot+'/'))||false;}}
+  catch(error){note('INVALID_INSTALLATION',error.message,'.ai-workflow/manifest.json');}
+  if(foundationTracked){
+    try{const snapshot=readFoundationSnapshot(root,{read:view.readFile}),wanted=foundationBasis.map(e=>e.path).sort();
+      if(!isDeepStrictEqual(snapshot.entries.map(e=>e.path),wanted)){foundationCurrent=false;note('FOUNDATION_MEMBERSHIP_CHANGED','Foundation membership differs from the bookmark',foundationRoot);}
+    }catch(error){foundationCurrent=false;for(const item of error.details?.length?error.details:[{code:'INVALID_FOUNDATION',message:error.message,path:foundationRoot}])note(item.code,item.message,item.path);}
+  }
   visit(()=>view.getDoc('docs/project/overview.md'));
   if(state.current_iteration)for(const name of ['scope','design','tasks','verification'])visit(()=>view.getDoc(state.current_iteration+'/'+name+'.md'));
   for(const entry of state.basis)if(/^docs\/iterations\/[^/]+\/(?:tasks|verification)\.md$/u.test(entry.path))visit(()=>view.getDoc(entry.path));
@@ -70,8 +81,11 @@ export function inspectWorkflowView(view){
     }
     if(checked.size>1000)error('STATE_INVALID','Too many linked documents');
   }
-  let basisCurrent=true;for(const entry of state.basis){const bytes=view.readFile(entry.path);if(bytes===null){basisCurrent=false;note('MISSING_BASIS','State basis file is missing',entry.path);}else if(sha256(bytes)!==entry.sha256){basisCurrent=false;note('STALE_BASIS','State basis content changed',entry.path);}}
-  const policyCurrent=!issues.some(x=>x.code==='STALE_PLAN_CONFIRMATION'),structuralIssues=issues.filter(x=>!['STALE_BASIS','STALE_PLAN_CONFIRMATION'].includes(x.code));
-  return {valid:issues.length===0,diagnostic:structuralIssues.length?'inconsistent':basisCurrent&&policyCurrent?'valid':'stale',state,basis_current:basisCurrent,policy_confirmation_current:policyCurrent,position_consistent:!issues.some(x=>x.code==='INCONSISTENT_POSITION'),issues,task,acceptance_verified:false,source_authenticity_verified:false,checks_execution_verified:false,review_independence_verified:false,document_validation:'supported_local_markdown_and_record_subset'};
+  let basisCurrent=foundationCurrent;for(const entry of state.basis){const bytes=view.readFile(entry.path),isFoundation=entry.path.startsWith(foundationRoot+'/');
+    if(isFoundation&&(bytes===null||sha256(bytes)!==entry.sha256))foundationCurrent=false;
+    if(bytes===null){basisCurrent=false;if(isFoundation&&!initialFoundationPaths.includes(entry.path)){if(!issues.some(e=>e.code==='FOUNDATION_MEMBERSHIP_CHANGED'))note('FOUNDATION_MEMBERSHIP_CHANGED','A bound foundation member was removed',entry.path);}else note('MISSING_BASIS','State basis file is missing',entry.path);}
+    else if(sha256(bytes)!==entry.sha256){basisCurrent=false;note(isFoundation?'STALE_FOUNDATION':'STALE_BASIS','State basis content changed',entry.path);}}
+  const policyCurrent=!issues.some(x=>x.code==='STALE_PLAN_CONFIRMATION'),structuralIssues=issues.filter(x=>!['STALE_BASIS','STALE_PLAN_CONFIRMATION','STALE_FOUNDATION','FOUNDATION_MEMBERSHIP_CHANGED'].includes(x.code));
+  return {valid:issues.length===0,diagnostic:structuralIssues.length?'inconsistent':basisCurrent&&policyCurrent?'valid':'stale',state,basis_current:basisCurrent,foundation_tracking:foundationTracked?'tracked':'untracked',foundation_current:foundationTracked?foundationCurrent:null,policy_confirmation_current:policyCurrent,position_consistent:!issues.some(x=>x.code==='INCONSISTENT_POSITION'),issues,task,acceptance_verified:false,source_authenticity_verified:false,checks_execution_verified:false,review_independence_verified:false,document_validation:'supported_local_markdown_and_record_subset'};
 }
 export function inspectWorkflowState(root,options={}){try{return inspectWorkflowView(loadWorkflowView(root,options));}catch(e){return {valid:false,diagnostic:'invalid',state:null,basis_current:false,position_consistent:false,issues:[{code:e.code||'STATE_INVALID',message:e.message,path:null}],acceptance_verified:false,source_authenticity_verified:false};}}

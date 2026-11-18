@@ -1,12 +1,12 @@
 import * as fs from 'node:fs';
-import {join} from 'node:path';
+import {join,relative} from 'node:path';
 import {project,resourcePackage,snapshot} from './installation.mjs';
 import {initializeProject} from '../../src/installation.mjs';
 import {parseWorkflowDocument,renderWorkflowRecord,definitionDigest} from '../../src/workflow-docs.mjs';
 import {emptyPosition} from '../../src/workflow-status.mjs';
 import {parseSpecification,digest} from '../../src/spec-docs.mjs';
 import {applyWorkflowTransition} from '../../src/workflow-journal.mjs';
-import {validateStateYaml} from '../../src/state.mjs';
+import {validateStateYaml} from '../../src/state.mjs';import {inspectProjectContext} from '../../src/foundation-context.mjs';import {initialFoundationPaths} from '../../src/managed-blocks.mjs';
 
 export {snapshot};
 export const iteration='docs/iterations/001-sync',specPath='docs/project/specs/title.md';
@@ -14,9 +14,9 @@ export const req=(id,limit)=>'### Requirement: '+id+' Limit\nThe limit MUST be '
 export const header='# Synthetic capability\n\n## Purpose\nExplicit fictitious test input.\n\n## Scope\nThis test only.\n\n## Requirements\n\n';
 export const ref=(id,name='verification')=>({path:iteration+'/'+name+'.md',record_id:id});
 export const record=(id,kind,data,task='T1')=>({record_version:2,id,kind,iteration,task,source:{role:['confirmation'].includes(kind)?'user':['check','spec_sync'].includes(kind)?'tool':'assistant',reference:'fixture:'+id,text:'Synthetic test input; not actual user approval or execution'},data});
-let packagePromise;
+let packagePromise,installedBasePromise;
 export async function syncFixture({mode='MODIFIED',accepted=true,nextTask=false,onlyRequirement=false,crlf=false,bom=false,verification=null,fixedPackage=null,projectRoot=null,initialize=true}={}){
-  const packageRoot=fixedPackage||await(packagePromise??=resourcePackage()),root=projectRoot||project();if(initialize)initializeProject({packageRoot,projectRoot:root});
+  const packageRoot=fixedPackage||await(packagePromise??=resourcePackage()),root=projectRoot||project();if(initialize){if(!fixedPackage&&!projectRoot){const base=await(installedBasePromise??=Promise.resolve().then(()=>{const base=project();initializeProject({packageRoot,projectRoot:base});return base;}));fs.cpSync(base,root,{recursive:true,filter:path=>!relative(base,path).replaceAll('\\','/').startsWith('.ai-workflow/.local')});}else initializeProject({packageRoot,projectRoot:root});}
   fs.mkdirSync(join(root,iteration),{recursive:true});
   const write=(path,text)=>fs.writeFileSync(join(root,path),text),read=path=>fs.readFileSync(join(root,path),'utf8');
   for(const name of ['scope','design','tasks','verification'])write(iteration+'/'+name+'.md','# '+name+'\nSynthetic fixture only.\n');
@@ -43,11 +43,13 @@ export async function syncFixture({mode='MODIFIED',accepted=true,nextTask=false,
   const a=accepted?record('A1','confirmation',{purpose:'task_acceptance',result:'approved',artifacts,supersedes:[]}):null;
   const approvals=['scope','design','plan'].map(purpose=>record('approved-'+purpose,'confirmation',{purpose,result:'approved',artifacts:[definition(iteration+'/'+(purpose==='plan'?'tasks':purpose)+'.md')],supersedes:[]},null));
   write(iteration+'/verification.md','# Verification\n'+[...approvals,c,r,a].filter(Boolean).map(renderWorkflowRecord).join('\n'));
-  const state={schema_version:1,revision:0,current_iteration:iteration,current_task:'T1',phase:progress.phase,status:progress.status,waiting_for:progress.waiting_for,checkpoint_ref:null,confirmation_refs:progress.confirmation_refs,blocker_refs:[],basis:[...['scope','design','tasks','verification'].map(name=>iteration+'/'+name+'.md'),'docs/project/specs/README.md',specPath].map(path=>({path,sha256:digest(read(path))})),updated_at:'2026-11-15T00:00:00Z'};
+  const state={schema_version:1,revision:0,current_iteration:iteration,current_task:'T1',phase:progress.phase,status:progress.status,waiting_for:progress.waiting_for,checkpoint_ref:null,confirmation_refs:progress.confirmation_refs,blocker_refs:[],basis:[...['scope','design','tasks','verification'].map(name=>iteration+'/'+name+'.md'),'docs/project/specs/README.md',specPath,...initialFoundationPaths].map(path=>({path,sha256:digest(read(path))})),updated_at:'2026-11-15T00:00:00Z'};
   write('docs/workflow/state.yaml',JSON.stringify(state));
   let serial=0;
   const current=()=>validateStateYaml(read('docs/workflow/state.yaml'));
-  const request=(action,data={},id='fixture-'+(++serial))=>({operation_version:2,request_id:id,expected_revision:current().revision,action,data});
+  const request=(action,data={},id='fixture-'+(++serial))=>({operation_version:3,request_id:id,expected_revision:current().revision,action,data});
+  const bindContext=(id='fixture-context-T1')=>applyWorkflowTransition(root,request('context_bind',{iteration,task:current().current_task,expected_snapshot:inspectProjectContext(root).snapshot_sha256,impact:'unaffected',reason:'Synthetic context prerequisite for the explicitly staged fixture.'},id));
+  bindContext();
   const syncRequest=id=>request('spec_sync',{iteration,task:'T1'},id||'sync-T1');
-  return {root,packageRoot,path,before,replacement,id,task:t,delta:d,artifacts,write,read,current,request,syncRequest,apply:(action,data,id)=>applyWorkflowTransition(root,request(action,data,id))};
+  return {root,packageRoot,path,before,replacement,id,task:t,delta:d,artifacts,bind:()=>bindContext('fixture-context-'+(++serial)),write,read,current,request,syncRequest,apply:(action,data,id)=>applyWorkflowTransition(root,request(action,data,id))};
 }

@@ -142,3 +142,8 @@ SOFTWARE.
 ## 0.3.2
 
 Updated shared references for artifact inspection and explicit read-only client diagnostics; original licenses preserved.
+
+
+## 0.3.3
+
+按D146同步每任务地基上下文、专用绑定与operation v3方法；业务record v1/v2及原许可保留，客户端自动事件接入不随本项提供。

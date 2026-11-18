@@ -2,7 +2,7 @@
 name: release-work
 description: "用于采用 ai-workflow 文档体系的项目，在准备发布、执行已获准的具体部署、核验上线结果或处理本次发布失败时。普通功能完成不自动触发。"
 metadata:
-  version: "0.3.2"
+  version: "0.3.3"
   capability: "release"
 ---
 

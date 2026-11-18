@@ -179,7 +179,7 @@ runtime_dependency_review:
   date: "2026-11-13"
   target: windows_x64_node_24
   evidence_id: step0-20261113-ece1fbfa
-  verification_reference: tests/README.md#第0步客户端与依赖核验
+  verification_reference: tests/README.md#历史检查与限制
   archive_integrity: sha512_sri_matched_for_all_8_selected_packages
   registry_advisories: zero_matches_at_query_time_not_security_guarantee
   runtime_library_probes: 7_passed_no_framework_state_runtime
@@ -204,7 +204,7 @@ runtime_dependency_review:
     binary_in_distribution: false
     distribution_notices: THIRD_PARTY_NOTICES.md
     distribution_dependency_inventory: dependency-manifest.json
-    verification_reference: tests/README.md#第1步工程资源包与校验基础
+    verification_reference: tests/README.md#历史检查与限制
   other_platform_optional_packages: not_reviewed
   step2_adoption:
     decision: D114
@@ -214,7 +214,7 @@ runtime_dependency_review:
     new_runtime_dependencies: []
     install_scripts_executed: false
     build_binary_executed: true
-    verification_reference: tests/README.md#第2步安装初始化与有限恢复
+    verification_reference: tests/README.md#历史检查与限制
   step3_adoption:
     decision: D116
     package_name: iterlane
@@ -227,7 +227,7 @@ runtime_dependency_review:
     new_runtime_dependencies: []
     global_configuration_changed: false
     upstream_model_identity: not_independently_verified
-    verification_reference: tests/README.md#第3步客户端接入与第23步联合校验
+    verification_reference: tests/README.md#历史检查与限制
   excluded_latest:
     name: fast-uri
     version: "4.2.3"

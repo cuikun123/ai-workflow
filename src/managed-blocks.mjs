@@ -8,7 +8,8 @@ const markers = {
   ignore: ['# iterlane:begin', '# iterlane:end'],
   attributes: ['# iterlane:attributes:begin', '# iterlane:attributes:end'],
 };
-export const initialBasisPaths = ['docs/project/overview.md', 'docs/iterations/000-foundation/scope.md', 'docs/iterations/000-foundation/tasks.md', 'docs/iterations/000-foundation/verification.md'];
+export const initialFoundationPaths = Object.freeze(['README.md','engineering.md','experience.md','operations.md','quality.md','security.md'].map(name=>'docs/project/foundation/'+name));
+export const initialBasisPaths = ['docs/project/overview.md', 'docs/iterations/000-foundation/scope.md', 'docs/iterations/000-foundation/design.md', 'docs/iterations/000-foundation/tasks.md', 'docs/iterations/000-foundation/verification.md', ...initialFoundationPaths];
 const conflict = message => { throw new WorkflowError('CONFLICT', message); };
 const bounded = bytes => { if (bytes.length > 1024 * 1024) conflict('Generated managed text exceeds 1 MiB'); return bytes; };
 export function parseManagedBlock(bytes, kind) {
@@ -39,7 +40,7 @@ export const createIgnoreBlock = () => Buffer.from('# iterlane:begin\n/.ai-workf
 export function validateStateDocumentPaths(paths) {
   if (!Array.isArray(paths) || paths.length > 1000) conflict('Invalid state document paths');
   const seen = new Set();
-  for (const path of paths) { assertPortablePath(path); const id=path.normalize('NFC').toLowerCase(); if (!/^docs\/(?:project|iterations|workflow|releases)\/.+\.(?:md|yaml|json)$/u.test(path) || seen.has(id)) conflict('State protection must name unique exact docs files'); seen.add(id); }
+  for (const path of paths) { assertPortablePath(path); const id=path.normalize('NFC').toLowerCase(); if (!/^docs\/(?:project|iterations|workflow|releases)\/.+\.(?:[mM][dD]|yaml|json)$/u.test(path) || seen.has(id)) conflict('State protection must name unique exact docs files'); seen.add(id); }
   return paths;
 }
 export function createAttributesBlock(documentPaths=initialBasisPaths) {

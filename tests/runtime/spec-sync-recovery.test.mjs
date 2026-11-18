@@ -17,8 +17,8 @@ test('spec sync recovery: interrupted sync resumes and binds the same receipt',a
   const result=recoverWorkflowTransition(f.root,'resume',revision,{operationId:f.log.data.operation_id});assert.equal(result.action,'resumed');assert.match(f.read(specPath),/limit MUST be 120/);assert.equal(f.current().phase,'closeout');
 });
 test('spec sync recovery: finite undo removes only a verifiable newly created spec',async()=>{
-  const f=await interrupted('ADDED');assert.ok(fs.existsSync(join(f.root,f.path)));
-  recoverWorkflowTransition(f.root,'undo',f.current().revision,{operationId:f.log.data.operation_id});assert.ok(!fs.existsSync(join(f.root,f.path)));assert.equal(f.current().phase,'closeout');assert.equal(f.current().revision,1);
+  const f=await interrupted('ADDED'),revision=f.current().revision;assert.ok(fs.existsSync(join(f.root,f.path)));
+  recoverWorkflowTransition(f.root,'undo',revision,{operationId:f.log.data.operation_id});assert.ok(!fs.existsSync(join(f.root,f.path)));assert.equal(f.current().phase,'closeout');assert.equal(f.current().revision,revision+1);
   assert.throws(()=>applyWorkflowTransition(f.root,f.syncRequest('sync-T1')));
 });
 test('spec sync recovery: later edits and new inventory members block recovery without overwrites',async()=>{

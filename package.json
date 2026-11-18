@@ -1,6 +1,6 @@
 {
   "name": "iterlane",
-  "version": "0.3.0-dev.11",
+  "version": "0.3.0-dev.12",
   "private": true,
   "description": "Project-local workflow resources and deterministic validation tools",
   "license": "MIT",

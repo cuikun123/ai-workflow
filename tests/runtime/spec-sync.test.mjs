@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
-import {join} from 'node:path';
+import {join,sep} from 'node:path';
+import {project} from '../helpers/installation.mjs';
+import {readWorkflowLogs} from '../../src/workflow-log.mjs';
 import {syncFixture,snapshot,iteration,specPath,ref,record,req} from '../helpers/spec-sync.mjs';
 import {parseWorkflowDocument,renderWorkflowRecord} from '../../src/workflow-docs.mjs';
 import {applyWorkflowTransition,planWorkflowOperation} from '../../src/workflow-journal.mjs';
@@ -17,13 +19,13 @@ test('spec sync: BOM and unrelated bytes survive replacement and final requireme
 });
 
 test('spec sync: preview plans only the accepted first task and writes nothing',async()=>{
-  const f=await syncFixture({nextTask:true}),before=snapshot(f.root,true),plan=planWorkflowOperation(f.root,f.syncRequest());
+  const f=await syncFixture({nextTask:true}),revision=f.current().revision,before=snapshot(f.root,true),plan=planWorkflowOperation(f.root,f.syncRequest());
   const spec=plan.files.find(x=>x.path===specPath);assert.match(spec.after.toString(),/limit MUST be 120/);assert.match(spec.after.toString(),/limit MUST be 10/);assert.doesNotMatch(spec.after.toString(),/limit MUST be 20/);
-  assert.deepEqual(snapshot(f.root,true),before);assert.equal(f.current().revision,0);assert.equal(plan.afterState.revision,1);assert.equal(plan.sync_ref.path,iteration+'/verification.md');
+  assert.deepEqual(snapshot(f.root,true),before);assert.equal(f.current().revision,revision);assert.equal(plan.afterState.revision,revision+1);assert.equal(plan.sync_ref.path,iteration+'/verification.md');
 });
 test('spec sync: applied receipt and state agree, duplicate request does not write again',async()=>{
   const f=await syncFixture({nextTask:true}),request=f.syncRequest(),result=applyWorkflowTransition(f.root,request);
-  assert.equal(result.action,'applied');assert.ok(result.sync_ref);assert.equal(f.current().phase,'closeout');assert.equal(f.current().revision,1);
+  assert.equal(result.action,'applied');assert.ok(result.sync_ref);assert.equal(f.current().phase,'closeout');assert.equal(f.current().revision,request.expected_revision+1);
   const inspection=inspectSpecifications(f.root,{taskRef:ref('T1','tasks')});assert.equal(inspection.valid,true,JSON.stringify(inspection.issues));
   assert.ok(inspectSpecifications(f.root).issues.some(x=>x.code==='STALE_DELTA_BASE'&&x.record_id==='D2'),'The unaccepted second task must rebase its changed file');
   const before=snapshot(f.root,true);assert.equal(applyWorkflowTransition(f.root,request).action,'already_applied');assert.deepEqual(snapshot(f.root,true),before);
@@ -55,4 +57,16 @@ test('spec sync: duplicate requests detect later edits while closeout remains un
 });
 test('spec sync: unrelated sections and CRLF bytes survive a requirement replacement',async()=>{
   const f=await syncFixture({crlf:true});applyWorkflowTransition(f.root,f.syncRequest());assert.equal(f.read(specPath),f.before.replace(f.delta.data.operations[0].after_markdown.replaceAll('120','60'),f.replacement));
+});
+
+test('spec sync: project path aliases preview safely while linked roots and foreign journal identities remain refused',async()=>{
+  const f=await syncFixture(),input=f.syncRequest(),before=snapshot(f.root,true);
+  for(const root of [f.root+sep,f.root.replaceAll('\\','/')+'/'])assert.equal(planWorkflowOperation(root,input).afterState.revision,input.expected_revision+1);
+  assert.deepEqual(snapshot(f.root,true),before);
+  const link=join(project(),'linked-project');fs.symlinkSync(f.root,link,process.platform==='win32'?'junction':'dir');
+  assert.throws(()=>planWorkflowOperation(link,input),e=>e.code==='PACKAGE_INVALID');assert.deepEqual(snapshot(f.root,true),before);
+  const entry=readWorkflowLogs(f.root).find(x=>x.data.request.action==='context_bind'),file=join(f.root,entry.path),bytes=fs.readFileSync(file);
+  try{const journal=JSON.parse(bytes);journal.project_root=f.root+sep;fs.writeFileSync(file,JSON.stringify(journal));assert.throws(()=>planWorkflowOperation(f.root,input),e=>e.code==='INCOMPLETE');}
+  finally{fs.writeFileSync(file,bytes);}
+  assert.deepEqual(snapshot(f.root,true),before);
 });

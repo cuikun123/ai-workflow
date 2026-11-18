@@ -13,11 +13,12 @@ import { checkPackage, sha256, skillNames } from './package.mjs';
 import { isWithin,assertPortablePath } from './paths.mjs';
 import { validateStateYaml } from './state.mjs';
 import { projectPath, readProjectFile } from './project-paths.mjs';
-import { createNavigationBlock, createIgnoreBlock, createAttributesBlock, initialBasisPaths, validateStateDocumentPaths, parseManagedBlock, replaceManagedBlock } from './managed-blocks.mjs';
+import { createNavigationBlock, createIgnoreBlock, createAttributesBlock, initialBasisPaths, initialFoundationPaths, validateStateDocumentPaths, parseManagedBlock, replaceManagedBlock } from './managed-blocks.mjs';
 import { applyInstallationPlan, assertNoPendingOperation, scanOperations, recoverInstallation, decode, equalBytes } from './install-journal.mjs';
 import { WorkflowError } from './errors.mjs';
 import {inspectSkillResources,skillPolicy,providerResources} from './skill-resources.mjs';
 import {exampleResources} from './example-resources.mjs';
+import {relocateLinks, installedResourcePath, isHumanGuide} from './document-links.mjs';
 
 const manifestPath = '.ai-workflow/manifest.json';
 const roots = skillNames.map(name => '.agents/skills/' + name);
@@ -45,8 +46,10 @@ function blueprint(packageRoot) {
   checkPackage(packageRoot);
   const bytes = fs.readFileSync(join(packageRoot, 'resource-manifest.json')), source = JSON.parse(bytes);
   const files = source.files.map(entry => ({
-    path: entry.path.startsWith('resources/skills/')&&!entry.path.startsWith('resources/skills/_shared/') ? '.agents/' + entry.path.slice('resources/'.length) : '.ai-workflow/' + entry.path,
-    after: entry.path === 'bin/iterlane.mjs' ? installedLauncher : fs.readFileSync(join(packageRoot, entry.path)), kind: 'file',
+    path: installedResourcePath(entry.path),
+    after: entry.path === 'bin/iterlane.mjs' ? installedLauncher
+      : isHumanGuide(entry.path) ? Buffer.from(relocateLinks(fs.readFileSync(join(packageRoot, entry.path), 'utf8'), entry.path, installedResourcePath(entry.path), installedResourcePath))
+      : fs.readFileSync(join(packageRoot, entry.path)), kind: 'file',
   }));
   const pkg = { name: metadata.name, version: metadata.version, source_manifest_sha256: sha256(bytes), state_schemas: [1] };
   return { files, package: pkg };
@@ -78,12 +81,12 @@ function validateManifest(root, manifest,diagnostic=false,expectedVersion=metada
   }
   return manifest;
 }
-function readManifest(root,diagnostic=false) {
-  const bytes = readProjectFile(root, manifestPath); if (!bytes) return null;
+function readManifest(root,diagnostic=false,read=path=>readProjectFile(root,path)) {
+  const bytes = read(manifestPath); if (!bytes) return null;
   let data; try { data = JSON.parse(bytes.toString('utf8')); } catch { fail('Installation manifest is damaged'); }
   return validateManifest(root, data,diagnostic);
 }
-export const readInstallationManifest=projectRoot=>readManifest(canonicalRoot(projectRoot));
+export const readInstallationManifest=(projectRoot,{read}={})=>readManifest(canonicalRoot(projectRoot),false,read);
 export const readDiagnosticInstallationManifest=projectRoot=>readManifest(canonicalRoot(projectRoot),true);
 export function prepareWorkflowProtection(projectRoot,paths,{read=path=>readProjectFile(projectRoot,path)}={}) {
   const root=canonicalRoot(projectRoot);let manifest;try{manifest=JSON.parse(read(manifestPath));}catch{fail('Workflow state needs a known installation');}validateManifest(root,manifest);
@@ -113,26 +116,26 @@ function inventory(root,issues=null) {
   });}
   scan('.ai-workflow'); for (const path of roots) scan(path); return files;
 }
-export function inspectInstallationResources(root, manifest) {
+export function inspectInstallationResources(root, manifest,{read=path=>readProjectFile(root,path)}={}) {
   const missing = [], changed = [],issues=[];
   for (const entry of manifest.files) {
-    try{const bytes = readProjectFile(root, entry.path);
+    try{const bytes = read(entry.path);
     if (!bytes) missing.push(entry.path); else if (bytes.length !== entry.bytes || sha256(bytes) !== entry.sha256) changed.push(entry.path);}catch(error){issues.push({path:entry.path,error});}
   }
   const expected = new Set(manifest.files.map(entry => entry.path)), extra = inventory(root,issues).filter(path => !expected.has(path));
   const missingBlocks = [];
   for (const entry of manifest.blocks) {
-    try{const bytes = readProjectFile(root, entry.path, 1024 * 1024), block = bytes && parseManagedBlock(bytes, entry.kind);
+    try{const bytes = read(entry.path), block = bytes && parseManagedBlock(bytes, entry.kind);
     if (!block) missingBlocks.push(entry); else if (sha256(block.bytes) !== entry.sha256) changed.push(entry.path);}catch(error){issues.push({path:entry.path,error});}
   }
   return {missing,changed,extra,missingBlocks,issues};
 }
-function inspect(root, manifest) {
+function inspect(root, manifest,{allowFoundationMembershipChanges=false}={}) {
   const {missing,changed,extra,missingBlocks,issues}=inspectInstallationResources(root,manifest);if(issues.length)throw issues[0].error;
   const stateBytes = readProjectFile(root, 'docs/workflow/state.yaml');
   if (!stateBytes) fail('Existing project state is missing; init cannot reset progress', 'INCOMPLETE');
   let state; try { state = validateStateYaml(stateBytes.toString('utf8')); } catch { fail('Existing project state is invalid; state recovery is a separate task', 'INCOMPLETE'); }
-  for (const entry of state.basis) if (readProjectFile(root, entry.path) === null) fail('Progress input is missing: ' + entry.path, 'INCOMPLETE');
+  for (const entry of state.basis) if (readProjectFile(root, entry.path) === null && !(allowFoundationMembershipChanges&&entry.path.startsWith('docs/project/foundation/')&&!initialFoundationPaths.includes(entry.path))) fail('Progress input is missing: ' + entry.path, 'INCOMPLETE');
   for (const entry of [...state.confirmation_refs, ...state.blocker_refs, ...(state.checkpoint_ref ? [state.checkpoint_ref] : [])]) if (readProjectFile(root, entry.path) === null) fail('Progress reference file is missing: ' + entry.path, 'INCOMPLETE');
   if (state.current_iteration !== null) {
     const path = projectPath(root, state.current_iteration), stat = fs.lstatSync(path, { throwIfNoEntry: false });
@@ -147,10 +150,10 @@ function inspect(root, manifest) {
   }
   return { missing, changed, extra, missingBlocks, state };
 }
-export function checkInstallation(projectRoot,{allowPendingWorkflow=false}={}) {
+export function checkInstallation(projectRoot,{allowPendingWorkflow=false,allowFoundationMembershipChanges=false}={}) {
   const root = canonicalRoot(projectRoot); if(!allowPendingWorkflow)assertNoPendingOperation(root);
   const manifest = readManifest(root); if (!manifest) fail('No installation manifest', 'INCOMPLETE');
-  const result = inspect(root, manifest);
+  const result = inspect(root, manifest,{allowFoundationMembershipChanges});
   if (result.changed.length || result.extra.length) fail('Installed resources changed or contain unlisted files');
   if (result.missing.length || result.missingBlocks.length) fail('Installed resources or navigation are missing', 'INCOMPLETE');
   const skills=inspectSkillResources(root,{installed:true});if(!skills.valid)throw new WorkflowError('PACKAGE_INVALID','Installed skill dependencies or common references are inconsistent',skills.issues);

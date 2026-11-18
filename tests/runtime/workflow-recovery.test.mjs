@@ -1,13 +1,13 @@
-import test,{before} from 'node:test';import assert from 'node:assert/strict';import * as fs from 'node:fs';import {join} from 'node:path';
+import test,{before} from 'node:test';import assert from 'node:assert/strict';import * as fs from 'node:fs';import {join,relative} from 'node:path';
 import {spawn,spawnSync} from 'node:child_process';import {once} from 'node:events';import {setTimeout as delay} from 'node:timers/promises';
 import {project,resourcePackage,snapshot} from '../helpers/installation.mjs';import {initializeProject,checkInstallation} from '../../src/installation.mjs';
 import {current,record,task,ref,definition,artifact,driver} from '../helpers/workflow.mjs';
 import {planWorkflowTransition} from '../../src/workflow-transitions.mjs';
 import {inspectWorkflowState} from '../../src/workflow-status.mjs';
-let packageRoot;before(async()=>{packageRoot=await resourcePackage();});
+let packageRoot,installedBase;before(async()=>{packageRoot=await resourcePackage();installedBase=project();initializeProject({packageRoot,projectRoot:installedBase});});
 const load=()=>import('../../src/workflow-journal.mjs');
-function fixture(){const root=project();initializeProject({packageRoot,projectRoot:root});const iteration='docs/iterations/000-foundation';for(const [path,text]of [['docs/project/overview.md','# Project\nFixture only\n'],[iteration+'/scope.md','# Scope\nFixture\n'],[iteration+'/design.md','# Design\nFixture\n'],[iteration+'/tasks.md','# Tasks\n'],[iteration+'/verification.md','# Evidence\n']])fs.writeFileSync(join(root,path),text);return {root,iteration};}
-const request=(f,id='add-task')=>({operation_version:1,request_id:id,expected_revision:current(f.root).revision,action:'record',data:{record:task(f)}});
+function fixture(){const root=project();fs.cpSync(installedBase,root,{recursive:true,filter:path=>!relative(installedBase,path).replaceAll('\\','/').startsWith('.ai-workflow/.local')});const iteration='docs/iterations/000-foundation';for(const [path,text]of [['docs/project/overview.md','# Project\nFixture only\n'],[iteration+'/scope.md','# Scope\nFixture\n'],[iteration+'/design.md','# Design\nFixture\n'],[iteration+'/tasks.md','# Tasks\n'],[iteration+'/verification.md','# Evidence\n']])fs.writeFileSync(join(root,path),text);return {root,iteration};}
+const request=(f,id='add-task')=>({operation_version:3,request_id:id,expected_revision:current(f.root).revision,action:'record',data:{record:task(f)}});
 function failOnce(root,target,after=false){let hit=false;return {...fs,renameSync(from,to){if(!hit&&to===join(root,target)){hit=true;if(after)fs.renameSync(from,to);throw Object.assign(new Error('Injected interruption'),{code:'EIO'});}return fs.renameSync(from,to);}};}
 
 test('workflow persistence: apply commits one revision, idempotent request replay cannot duplicate records',async()=>{const {applyWorkflowTransition}=await load(),f=fixture(),input=request(f);const first=applyWorkflowTransition(f.root,input);assert.equal(first.revision,1);assert.equal(checkInstallation(f.root).resources,'valid');const before=snapshot(f.root,true);const second=applyWorkflowTransition(f.root,input);assert.equal(second.action,'already_applied');assert.deepEqual(snapshot(f.root,true),before);});
@@ -27,7 +27,7 @@ test('workflow isolation: unfinished state writes block installation and competi
 
 test('workflow Git protection: dynamic documents use literal paths and preserve state hashes after clone',async()=>{
   const {applyWorkflowTransition}=await load(),f=fixture(),other='docs/iterations/002 space[1]',nearby='docs/iterations/002 space1';for(const dir of [other,nearby]){fs.mkdirSync(join(f.root,dir),{recursive:true});for(const name of ['scope','design','tasks','verification'])fs.writeFileSync(join(f.root,dir,name+'.md'),'Original line\n');}
-  const next={root:f.root,iteration:other};applyWorkflowTransition(f.root,{operation_version:1,request_id:'dynamic',expected_revision:0,action:'record',data:{record:task(next)}});
+  const next={root:f.root,iteration:other};applyWorkflowTransition(f.root,{operation_version:3,request_id:'dynamic',expected_revision:0,action:'record',data:{record:task(next)}});
   const initialized=spawnSync('git',['init','-b','main'],{cwd:f.root,encoding:'utf8',windowsHide:true});assert.equal(initialized.status,0,initialized.stderr);
   const attrs=spawnSync('git',['check-attr','text','--',other+'/tasks.md',nearby+'/tasks.md'],{cwd:f.root,encoding:'utf8',windowsHide:true});assert.equal(attrs.status,0);assert.match(attrs.stdout,/002 space\[1\]\/tasks\.md: text: unset/u);assert.match(attrs.stdout,/002 space1\/tasks\.md: text: unspecified/u);
   const git=args=>{const r=spawnSync('git',['-c','core.autocrlf=true','-c','core.safecrlf=false','-c','commit.gpgSign=false','-c','core.hooksPath='+join(f.root,'disabled-hooks'),'-c','user.name=Workflow Fixture','-c','user.email=workflow@example.invalid',...args],{cwd:f.root,encoding:'utf8',windowsHide:true});assert.equal(r.status,0,r.stderr);};git(['init','-b','main']);git(['add','--all']);git(['commit','-m','Dynamic state byte fixture']);const clone=project();git(['clone','--no-local','--',f.root,clone]);assert.equal(checkInstallation(clone).resources,'valid');assert.equal(inspectWorkflowState(clone).valid,true);assert.ok(fs.readFileSync(join(clone,other+'/tasks.md')).equals(fs.readFileSync(join(f.root,other+'/tasks.md'))));
@@ -48,8 +48,8 @@ test('workflow recovery: altered after-state cannot be replayed even when its di
 
 test('workflow locking: a completed writer before lock acquisition cannot leave partial document writes',async()=>{
   const {applyWorkflowTransition}=await load(),f=fixture(),other={root:f.root,iteration:'docs/iterations/002-other'};fs.mkdirSync(join(f.root,other.iteration));for(const name of ['scope','design','tasks','verification'])fs.writeFileSync(join(f.root,other.iteration,name+'.md'),'# Other\n');
-  const input={operation_version:1,request_id:'A',expected_revision:0,action:'record',data:{record:task(other,'TA')}},beforeTasks=fs.readFileSync(join(f.root,other.iteration+'/tasks.md'));let intervened=false;
-  const io={...fs,openSync(path,...args){if(!intervened&&path===join(f.root,'.ai-workflow/.local/write.lock')){intervened=true;applyWorkflowTransition(f.root,{operation_version:1,request_id:'B',expected_revision:0,action:'record',data:{record:record(f,'B','blocker',{reason:'Synthetic concurrent input',condition:'Fixture'})}});}return fs.openSync(path,...args);}};
+  const input={operation_version:3,request_id:'A',expected_revision:0,action:'record',data:{record:task(other,'TA')}},beforeTasks=fs.readFileSync(join(f.root,other.iteration+'/tasks.md'));let intervened=false;
+  const io={...fs,openSync(path,...args){if(!intervened&&path===join(f.root,'.ai-workflow/.local/write.lock')){intervened=true;applyWorkflowTransition(f.root,{operation_version:3,request_id:'B',expected_revision:0,action:'record',data:{record:record(f,'B','blocker',{reason:'Synthetic concurrent input',condition:'Fixture'})}});}return fs.openSync(path,...args);}};
   assert.throws(()=>applyWorkflowTransition(f.root,input,{io}),e=>e.code==='CONFLICT');assert.equal(current(f.root).revision,1);assert.ok(fs.readFileSync(join(f.root,other.iteration+'/tasks.md')).equals(beforeTasks),'rejected stale request must not partially append TA');assert.equal(fs.existsSync(join(f.root,'.ai-workflow/.local/write.lock')),false);applyWorkflowTransition(f.root,{...request(f,'after-competition'),expected_revision:1});assert.equal(current(f.root).revision,2);
 });
 
@@ -62,7 +62,7 @@ test('workflow recovery: committed journal followed by real process exit has a s
 
 test('workflow persistence: recording a pause on active waiting work skips unchanged task images',async()=>{
   const {applyWorkflowTransition}=await load(),f=fixture();fs.writeFileSync(join(f.root,'server.mjs'),'export const value = 1;\n');fs.writeFileSync(join(f.root,'result.json'),'{"fixtureOnly":true}\n');driver(planWorkflowTransition,f).awaiting();
-  const old=current(f.root).revision,write=(action,data)=>applyWorkflowTransition(f.root,{operation_version:1,request_id:'active-'+action,expected_revision:current(f.root).revision,action,data});
+  const old=current(f.root).revision,write=(action,data)=>applyWorkflowTransition(f.root,{operation_version:3,request_id:'active-'+action,expected_revision:current(f.root).revision,action,data});
   assert.equal(write('record',{record:record(f,'real-pause','confirmation',{purpose:'pause',result:'approved',artifacts:[artifact(f)],supersedes:[]})}).revision,old+1);assert.equal(checkInstallation(f.root).resources,'valid');
   write('pause',{confirmation_ref:ref(f,'real-pause'),reason:'Explicit synthetic pause'});assert.equal(current(f.root).status,'paused');write('resume',{});assert.equal(current(f.root).status,'awaiting_user');assert.equal(current(f.root).waiting_for,'task_acceptance');assert.equal(inspectWorkflowState(f.root).valid,true);
 });

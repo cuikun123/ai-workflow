@@ -398,13 +398,15 @@
       ],
       "source": [
         "D70",
-        "D81"
+        "D81",
+        "D146"
       ],
       "applies_when": "实施、测试、诊断或审查候选时",
-      "enforced_by": "Agent对照有效规格、本轮变更和目标版本；spec check核对结构",
+      "enforced_by": "Agent核对适用约束；operation v3工具核对当前任务定义、最新上下文和committed专用绑定，不认证理解或业务检查",
       "retire_when": "不因模型升级退役",
       "resources": [
-        "references/work-contract.md#同一组依据"
+        "references/work-contract.md#同一组依据",
+        "references/work-contract.md#每任务最新地基"
       ]
     },
     {

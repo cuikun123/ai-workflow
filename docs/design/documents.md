@@ -1,10 +1,5 @@
 # 业务项目文档管理
 
-<a id="第0步状态结构与转换"></a>
-<a id="state-v1字段建议"></a>
-<a id="状态转换规则建议"></a>
-<a id="第4步状态与文档运行工具d120"></a>
-
 本页说明**资料放哪里、何时更新、写入中断后怎样恢复**。开发顺序见[开发流程](workflow.md)，确认依据见[决策记录](../decisions.md)。
 
 ## 文档结构
@@ -77,6 +72,8 @@ v2机器增量保存在scope.md的spec_delta记录，同步收据保存在verifi
 | `releases/` | 实际发布内容、版本、产物和环境结果 |
 
 `state.yaml` 是当前工作的书签，不积累完整需求、任务或验证历史。恢复时回读实际资料，由受校验工具更新；不能单凭书签判断工作或验收已完成。
+
+<a id="第0步状态结构与转换"></a>
 
 ## 状态结构与转换
 
@@ -306,6 +303,60 @@ resume只完成同一计划；undo只还原匹配的受管理变化，并以新�
 - 无法安全写记录时在对话交付断点；收尾未完保持未完成状态。
 
 以上是 Agent 的操作规则，不是事务保证、自动触发器或新状态协议。
+
+## 地基上下文与任务绑定草案
+
+状态：2026-11-18，C2已按D146验收；C3任务绑定、v3写入与修订已实现并完成必要检查及CLI演示，成果待用户验收，客户端接入与迁移尚未提供。配套[接入与分发设计](integration.md#多客户端与用户包设计草案)、[任务计划](../roadmap.md#多客户端地基约束与用户包计划)。本节读取与诊断已验收；下节绑定与新日志接口已在本次隔离候选实现，不能当作主目录旧dist或已有业务项目的能力。
+
+### 读取、摘要与目录变化
+
+`docs/project/foundation/`继续是项目公共约定，普通Markdown格式和既有正文保留，不要求迁移成另一套规则schema。已确认、生效且适用的约定必须遵守；新增全局红线建议由foundation/README导航到原文，避免复制两份冲突正文。未填写、不适用、待补和生效范围由AI与用户按阶段核对，工具不认证文档语义完整。
+
+新增`src/foundation-context.mjs`，输出`inspectProjectContext(projectRoot)`。返回`{context_version:1, project_root, framework, project_rules, foundation, snapshot_sha256, contents, semantic_completeness_verified:false}`：framework包含固定运行版本及实际公共规则文件摘要；project_rules包含项目AGENTS原字节摘要；foundation为排序的`[{path,sha256}]`；contents包含公共启动规则、项目规则和全部地基Markdown原文。snapshot由前述身份与摘要字段的canonical JSON计算，不把时间或模型自述纳入身份。
+
+地基递归枚举真实目录中的`.md`文件，包含初始六份、合法空文件及后来拆分的文件；目录成员与内容都比较。拒绝链接/重解析点、越界、不正规文件、大小写或Unicode归一化别名。最多256份地基Markdown，单文件1MiB、总上下文原文字节4MiB；同时服从已有全项目文档和record v2 artifacts的1000项上限，绑定前把AGENTS、公共规则和任务definition计入总数。超限拒绝并说明需整理范围，不静默截断红线，不扩v2 schema上限。原字节摘要和既有Git行尾保护保持。
+
+已实现只读接口：`context inspect [--project <dir>] --json`、`context guard [--project <dir>] --expected-snapshot <sha256> --json`。inspect不写业务文件、state或批准；guard只比较当前来源、目录和内容，返回`fresh/stale/unknown`。CLI参数错误沿USAGE，损坏资源沿PACKAGE_INVALID，地基/规则变化沿CONFLICT并附稳定诊断码。hook负责把此结果转换为宿主协议，不把CLI退出码直接当通用hook语义。
+
+初始basis补入实际六份地基文件与`000-foundation/design.md`；状态读取同时枚举地基成员，与basis中的地基路径集合及原字节摘要比较，分别报告`FOUNDATION_MEMBERSHIP_CHANGED`、`STALE_FOUNDATION`。六份基础文件缺失报告不完整；其他已绑定扩展文件新增/删除报告变化。state仍是书签，不加完整规则正文或另一份规则数据库。
+
+C2实现说明：framework以安装版本、source_manifest_sha256和七份公共启动文件摘要标识来源；project_root为规范化真实目录，contents为排序的path/text数组，原BOM和行尾保留。快照不包含state revision或updated_at，不因普通进度更新而失效。guard返回fresh/stale/unknown，非fresh用非零退出及结构化data报告；语义完整性始终未认证。
+
+D147正文减负：共享manifest仍属于七份内部读取、完整校验与摘要依赖，但不再进入contents的path/text数组。规则、能力信息、项目AGENTS及全部foundation原文继续返回；framework.files保留manifest摘要，snapshot仍按原身份域计算，context bind仍保存该文件哈希。只过滤对模型的正文输出，不删文件、不跳过读集或改变历史记录格式。工作流以framework.files、project_rules和foundation的排序摘要列表枚举内部读取依赖，不再以contents正文清单决定journal读集；保持原路径顺序，优化前未完成的v3日志仍可精确重放。
+
+新初始化项目同时把地基纳入basis和受保护文档路径，删除整个basis中的地基项也会被识别。旧书签且安装路径未声明跟踪时显示untracked，保持原语义，不静默迁移。context可在工作书签损坏时读取仍完整的已安装规则；未完成写操作、框架损坏、地基缺失/别名/超限/坏UTF8均拒绝。读取末尾复核身份、目录与字节；全部内容复读之后再次核对成员及初读文件身份、size和纳秒mtime/ctime，拒绝可观察的读取期间变化。这不是跨文件原子快照，也不提供对外部编辑器的强隔离。地基仅核对路径、UTF-8、容量、成员和摘要，不自动纳入业务规格编号或记录schema检查。
+
+### 任务绑定与重新核对
+
+候选接口`context bind --iteration <path> --task <id> --expected-snapshot <sha256> --expected-revision <n> --request-id <id> --impact unaffected|affected --reason <说明> [--preview] --json`，共用工作流锁、日志和恢复。它只绑定已选择的当前任务，不选择下一任务、改变phase、批准方案或登记验收；候选摘要或revision不符时拒绝。impact/reason记录实际影响核对，不认证该判断正确。预览零写，request-id重复按现有精确请求去重。
+
+绑定在本轮verification中生成已有v2 observation类型的check记录：method固定为`iterlane.foundation-context/v1`，expected/actual为同一snapshot摘要，source声明工具提供上下文而非认证AI阅读；artifacts精确绑定全部地基、项目规则、公共启动规则以及当前tasks.md的既有definition域。该域仍为正文＋全表任务定义、排除progress，并结合当前task ID定位；不发明单任务definition或改变旧字段含义。记录不作为业务测试通过证据，也不塞入原有产品check_refs代替必测项。ID由request-id的SHA256派生，符合现有ID长度约束。state.basis更新实际地基路径和摘要，revision只按一次语义写入递增，原phase/等待/验收事实保持。
+
+复用已有record v2 observation形状，不修改v2字段含义，不新增业务记录kind；绑定使用新增operation v3的`context_bind`语义动作，不通过普通record动作伪装。记录source.reference指向本次operation ID。运行时必须核对对应已committed的工作流v3日志，动作确为context_bind、同一项目/任务、同一snapshot，且后像含这条确切记录；只有字段形状或source.role=tool合法不足以取得绑定。普通record/refresh不能生成此专用日志动作。新工具继续读取旧operation v1/v2与业务record v1/v2；新动作不借用旧版本解释。恶意修改本地日志或绕过运行入口仍在现有真实性边界外。
+
+`prepare/select`可选择获准任务并核对确认，真正`start`前必须有与当前任务定义及snapshot一致的绑定。resume、进入verify、交验收、收尾操作均重新核对；state的普通refresh不能代替上下文绑定。绑定可处理唯一明确的地基过时，但其他坏记录、任务位置矛盾、来源冲突和未完成日志仍拒绝，不借绑定解除原等待。
+
+地基变化后先重新读取，在对话核对影响和已有适用确认，再通过bind的impact/reason由工具在同次日志内写入verification说明和绑定记录，不先手改verification制造额外STALE_BASIS。bind仅接纳地基内容/目录变化；进入前其他basis必须有效，verification只允许本操作规划的新增说明与记录。手工更改verification、scope/design/tasks等造成的其他过时，先按已有授权通过正式记录/确认/恢复核对，不能由bind一起刷新。普通record/refresh纵使更新了书签，也不能生成专用context_bind日志，启动门槛继续要求有效绑定。
+
+实质规则变更没有适用授权时保持待确认；用户已经明确内容和适用任务，无须每个任务重复确认。impact=affected时先完成必要范围/方案/计划确认与影响检查安排，再绑定新依据；仍存在坏确认、未核对任务定义或无法判断影响时拒绝进入实施。unaffected记录理由和原证据适用性，不能仅为了让摘要匹配就宣称原证据仍适用，也不自动将历史验收改为失败。
+
+审核时以当前snapshot、适用约束与实际候选交接，不能只交实现摘要；接受审查结果与验收前回核snapshot。工具验证的是绑定与资料一致性，约束是否适用、检查是否充分和模型是否遵守仍须实际检查/独立审查；方法不提供“读过即保证正确”的认证。
+
+地基变化需要修订已有任务的验证政策、需求或依赖时，本轮新增operation v3 `task_revise`，通过transition结构化输入执行；当前record只能追加，不能假称已支持修改。输入包含当前iteration/task、expected_revision、expected_definition_sha256（tasks.md全表definition）、request_id、reason和新的任务声明字段。只允许当前未完成任务，保留record版本、ID、phase、progress及其他任务/记录原字节；拒绝注入progress、改历史验收、改任务身份或已完成任务。新声明按原v1/v2 schema和依赖/需求/验证政策检查，旧计划确认随定义变化报告过时，修订本身不批准新定义。
+
+task_revise在同一v3日志保存前后像、verification修订理由和状态revision，保留原位置/等待与验收事实。新确认和context_bind满足前不能实施；影响已交付候选的检查、审查和验收仍按原规则重核，不借“保留progress”沿用失效证据。普通正文编辑仍不得改结构化记录；任务声明的正式修订统一由该动作承担。
+
+C3实施收口：新版检查入口及verificationIssues均排除method=iterlane.foundation-context/v1，绑定观察不能计入产品必测类型或check_refs。暂停、阻塞或其他等待中已记录的当前scope/design/plan确认可用confirm正式接纳，仅更新实际确认引用，保持phase/status/waiting_for、checkpoint与blocker；之后bind，原resume仍核对绑定、阶段和实际resolution，恢复时带上新适用阶段确认。
+
+保存的closeout因声明修订而验收/证据过时，普通resume继续拒绝；resume可另给verification_authorization_ref，须为当前有效operation_authorization，且只允许保存的closeout ready/running。阻塞仍须resolution；该受控路径恢复到verify并清空检查/审查/收尾引用，历史验收记录保留，不授权实施或自动验收。该参数落实既有重验授权原则，不提供通用phase覆盖。
+
+### 多文件写入与兼容
+
+dev.12全部工作流写操作统一使用operation v3/workflow journal v3，包含record、prepare/select、start、pause/resume、verify/await/confirm、closeout、spec_sync、complete、context_bind和task_revise；每次apply、重放和undo均核对精确foundation目录清单、内容读集合与前后像。不得只让bind写v3而其他操作仍漏查地基成员。旧v1/v2操作输入可诊断读取，dev.12写入明确拒绝并提示使用新接口；旧未完成日志由匹配旧工具在升级前恢复，不隐式转换。
+
+运行协议版本与业务record版本解耦：operation v3的record载荷仍校验record v1/v2，新绑定生成v2，历史v1任务的progress/checkpoint继续保持对应合法record版本。旧字段语义、spec inventories两项结构和已有schema不改义，v3日志额外保存foundation inventory。state最后提交，attributes只保护具体业务路径；目录新增/删除或前像被改时保留现场。相关CLI和所有实际写状态的skill参考统一改为新operation输入，不让旧示例在新包里误调用。
+
+同一会话可以复用工具已提供且摘要未变的正文；每个任务仍重新检查摘要并绑定自己的任务。独立上下文实施者和审查者必须取得对应内容，不能复用另一Agent的记忆。客户端会话缓存仅为`.ai-workflow/.local/`下的可丢弃运行数据，按项目/客户端/会话隔离，不认证身份、不替代verification里的任务依据；丢失后重新inspect。没有任务的只读/独立小修改采用只读上下文核对，不伪造业务任务。
 
 ## 拆分与扩展
 

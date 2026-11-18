@@ -31,13 +31,15 @@ export function taskVerificationPolicy(task){
 }
 export function verificationIssues(task,checks,reviews){
  const p=taskVerificationPolicy(task),issues=[],note=(code,message)=>issues.push({code,message});
+ const businessChecks=checks.filter(c=>c?.data.method!=='iterlane.foundation-context/v1');
  for(const c of checks){
+  if(c?.data.method==='iterlane.foundation-context/v1'){note('INVALID_REQUIRED_CHECK','Task context binding is not a business verification check');continue;}
   if(!c||c.kind!=='check'||c.task!==task.id||c.iteration!==task.iteration||c.data.result!=='passed'||task.record_version===2&&c.record_version!==2){note('INVALID_REQUIRED_CHECK','Check does not pass for this task');continue;}
   const d=c.data,t=d.check_type||'test_suite';
   if(t==='test_suite'&&(!d.command?.trim()||d.exit_code!==0||!Number.isSafeInteger(d.test_count)||d.test_count<1)||t==='command'&&(!d.command?.trim()||d.exit_code!==0||d.test_count!==null)||t==='observation'&&(d.command!==null||d.exit_code!==null||d.test_count!==null||!d.method?.trim()||!d.expected?.trim()||!d.actual?.trim()))note('INVALID_REQUIRED_CHECK','Passing check execution/observation fields are incomplete');
  }
- for(const type of p.required_check_types)if(!checks.some(c=>c?.data.result==='passed'&&(c.data.check_type||'test_suite')===type))note('MISSING_CHECK_TYPE','Required passing check type is missing: '+type);
- for(const scene of p.required_scenario_refs)if(!checks.some(c=>c?.data.result==='passed'&&c.data.covers?.some(s=>sameScene(s,scene))))note('MISSING_SCENARIO_COVERAGE','Required scene has no applicable passing check: '+scene.requirement_id+'/'+scene.scenario_id);
+ for(const type of p.required_check_types)if(!businessChecks.some(c=>c?.data.result==='passed'&&(c.data.check_type||'test_suite')===type))note('MISSING_CHECK_TYPE','Required passing check type is missing: '+type);
+ for(const scene of p.required_scenario_refs)if(!businessChecks.some(c=>c?.data.result==='passed'&&c.data.covers?.some(s=>sameScene(s,scene))))note('MISSING_SCENARIO_COVERAGE','Required scene has no applicable passing check: '+scene.requirement_id+'/'+scene.scenario_id);
  if(!reviews.length)note('MISSING_REQUIRED_REVIEW','Required review is missing');
  for(const r of reviews)if(!r||r.kind!=='review'||r.task!==task.id||r.iteration!==task.iteration||r.data.result!=='passed'||r.data.must_fix_open!==0||(r.data.mode||'independent')!==p.review_mode||!r.data.context_id?.trim()||task.record_version===2&&r.record_version!==2)note('INVALID_REQUIRED_REVIEW','Review mode, task, context or result does not match the confirmed policy');
  return issues;
