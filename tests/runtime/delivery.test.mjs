@@ -40,7 +40,7 @@ test('delivery: exported ZIP installs the exact supplied package and runs the ex
  const spec=spawnSync(process.execPath,[join(project,'.ai-workflow/bin/iterlane.mjs'),'spec','check','--json'],{encoding:'utf8',windowsHide:true});assert.equal(spec.status,0,spec.stdout+spec.stderr);
  assert.equal(JSON.parse(spec.stdout).version,JSON.parse(fs.readFileSync(join(pkg,'package.json'),'utf8')).version);
  const example=spawnSync(process.execPath,['--test','test/server.test.mjs'],{cwd:join(expanded,'examples/bookmarks'),encoding:'utf8',windowsHide:true});assert.equal(example.status,0,example.stdout+example.stderr);
- assert.match(fs.readFileSync(join(expanded,'quickstart.md'),'utf8'),/runtime\/bin\/iterlane\.mjs/);
+ assert.match(fs.readFileSync(join(expanded,'quickstart.md'),'utf8'),/runtime[\\/]bin[\\/]iterlane\.mjs/);
 });
 test('delivery: linked output parents are rejected before any source writes',async()=>{
  const pkg=await resourcePackage(),root=scratch(),alias=join(root,'alias');fs.symlinkSync(pkg,alias,process.platform==='win32'?'junction':'dir');

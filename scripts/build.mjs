@@ -68,22 +68,27 @@ export async function buildPackage(output = join(repo, 'dist')) {
     writeFileSync(join(staging, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
     writeFileSync(join(staging, 'README.md'), `# Iterlane 工具包
 
-版本：${metadata.version}。这是完整的内部试用工具，运行不需要源码或 npm 依赖。
+版本 ${metadata.version}，内部试用版。这是完整的工具包，运行时不需要源码或 npm 依赖。
+
+## 安装到新项目
 
 在工具包目录的终端运行：
 
 \`\`\`powershell
 node bin/iterlane.mjs check --json
 node bin/iterlane.mjs init --project <新项目目录> --preview --json
+node bin/iterlane.mjs init --project <新项目目录> --json
 \`\`\`
 
-核对预览后再去掉 --preview 执行安装。项目内使用 node .ai-workflow/bin/iterlane.mjs。
+第二条是预览，确认目标目录正确后再运行第三条。装好后，在项目里使用 \`node .ai-workflow/bin/iterlane.mjs\`。
 
-[使用指南](docs/usage.md)解释怎样开发、确认方案与验收；[工具参考](scripts/README.md)说明参数和输出；[版本与支持范围](docs/releasing.md)说明当前边界。
+[快速开始](docs/quickstart.md)按试用 ZIP 编写，命令开头是 \`runtime/bin\`。直接用本工具包时，把它换成 \`bin\`。
 
-[快速开始](docs/quickstart.md)中的 runtime/bin 路径用于外层试用 ZIP；直接使用本工具包时改为 bin。包中提供用户教程和运行资源；维护资料留在框架源码仓库。
+## 文档
 
-当前用于 Windows 本地新项目，安装、客户端可用和用户验收分别核对。支持范围见快速开始；升级只按明确支持的固定版本路径执行。
+- [使用指南](docs/usage.md)：怎么和 AI 一起开发、确认和验收
+- [命令参考](scripts/README.md)：命令、参数和输出
+- [版本与支持范围](docs/releasing.md)：支持什么、不支持什么
 
 Copyright (c) 2026 TY。整体 [MIT](LICENSE)，第三方完整许可见 THIRD_PARTY_NOTICES.md 和各技能 NOTICE.md。
 `);

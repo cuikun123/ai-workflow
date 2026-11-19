@@ -1,37 +1,55 @@
 # 本地收藏示例
 
-这是一个虚构的个人收藏应用，用 Node.js 内置 HTTP 和文件系统实现列表、添加、健康检查及 JSON 持久化。只监听本机回环地址，没有账号、云同步或生产部署配置；示例不预置业务批准或用户验收。
+一个虚构的个人收藏应用：能添加收藏、查看列表，数据保存在本地 JSON 文件里。只用 Node.js 自带的功能，不需要安装依赖。
 
-## 从试用包创建示例项目
+它只监听本机地址，没有账号、云同步和部署配置。
 
-在试用 ZIP 解压目录打开 PowerShell，指定一个新的空目录：
+## 1. 创建示例项目
+
+和[快速开始](../../docs/quickstart.md)一样，示例项目要和安装工具放在不同的文件夹。下面假设安装工具解压在 `D:\Code\Iterlane`，示例放在 `D:\Code\bookmark-demo`。在 PowerShell 运行：
 
 ```powershell
-mkdir bookmark-demo
-node runtime/bin/iterlane.mjs init --example bookmarks --project bookmark-demo --preview --json
-node runtime/bin/iterlane.mjs init --example bookmarks --project bookmark-demo --json
-cd bookmark-demo
+mkdir "D:\Code\bookmark-demo"
+node "D:\Code\Iterlane\runtime\bin\iterlane.mjs" init --example bookmarks --project "D:\Code\bookmark-demo" --preview --json
+node "D:\Code\Iterlane\runtime\bin\iterlane.mjs" init --example bookmarks --project "D:\Code\bookmark-demo" --json
+cd "D:\Code\bookmark-demo"
 ```
 
-先核对预览的目标和文件，再执行安装。默认不加 `--example` 的初始化只创建空业务骨架。
+第二条是预览，确认目标目录正确后再运行第三条。不加 `--example` 时，安装的是空项目。
 
-## 在示例项目运行
+## 2. 运行检查
 
 ```powershell
 node scripts/check.mjs
+```
+
+它会运行应用自带的测试。成功时输出里有 `"passed":true` 和实际测试数，原始输出保存在 `evidence/checks/` 下。
+
+## 3. 启动应用
+
+```powershell
+$env:PORT = 3000
 node server.mjs
 ```
 
-检查脚本真实运行应用测试，在 `evidence/checks/` 的独立目录保存原始测试输出和结果；成功会打印 `passed:true` 及实际测试数。源码示例目录也可直接运行这两条命令。
+终端打印 `{"port":3000}` 后，在浏览器打开 `http://127.0.0.1:3000/`，然后：
 
-服务打印实际端口，在浏览器打开对应的 `http://127.0.0.1:<端口>/`。添加一个虚构标题和 `https://example.com/` 链接，刷新后应仍在列表；按 Ctrl+C 结束并重新启动，收藏数据仍保存在 `bookmarks.json`。样例不会主动请求输入的网址。
+1. 添加一条收藏，例如标题随便写，地址填 `https://example.com/`。
+2. 刷新页面，收藏还在。
+3. 在终端按 Ctrl+C 停止，再运行 `node server.mjs`，刷新页面，收藏仍然在。数据保存在 `bookmarks.json`。
 
-坏存储或无效请求不会覆盖旧数据；健康入口为 `/health`。页面竞态的自动测试使用 DOM/fetch 替身，不能代替真实浏览器验证。新增真实需求仍需自身的方案、检查和验收。
+不设 `PORT` 时，每次启动都会随机选一个端口。这时以终端打印的端口为准，重启后要用新端口打开。
 
-示例运行产生的数据和证据不会进入框架分发包。整体采用 MIT，TY 署名与完整许可随试用包保留。
+应用不会访问你输入的网址。健康检查地址是 `/health`。
 
-## 从体验应用到开发自己的需求
+## 需要知道的
 
-本例演示应用效果；与 AI 确认目标、实施、检查和验收的全过程见[使用指南](../../docs/usage.md#跟着一个例子走完开发)。
+- 存储文件损坏或请求无效时，不会覆盖已有数据。
+- 页面并发相关的测试用的是模拟的浏览器环境，不能代替在真实浏览器里试。
+- 示例运行时产生的数据和检查记录不会进入框架安装包。
 
-带示例初始化也没有建立业务任务、批准或验收。继续修改前，让 AI 核对项目实际状态，明确新任务范围和方案；示例已有代码不能替你决定真实需求。
+## 接下来
+
+带示例安装的项目里，还没有任何任务、批准或验收。想在示例上继续开发，先让 AI 核对项目状态，再一起确定新任务的范围和方案。完整流程见[使用指南](../../docs/usage.md#跟着一个例子走完开发)。
+
+示例采用 MIT 许可，TY 署名。

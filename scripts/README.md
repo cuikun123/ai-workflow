@@ -1,70 +1,85 @@
-# 工具命令参考
+# 命令参考
 
-这些命令在**终端**运行。日常开发可以直接在 AI 聊天中提出需求，让 AI 核对项目并准备命令；使用流程见[使用指南](../docs/usage.md)。
+这些命令在终端运行。日常开发时，直接在 AI 对话里提需求就行，AI 会核对项目并替你准备命令。怎么配合开发见[使用指南](../docs/usage.md)。
 
-## 选择正确的入口
+## 命令写在哪里
 
-| 你在哪里 | 命令入口 |
+第一次安装请按[快速开始](../docs/quickstart.md)操作。之后按你所在的位置选择命令开头：
+
+| 你在哪里 | 命令开头 |
 | --- | --- |
-| 试用 ZIP 解压目录 | `node runtime/bin/iterlane.mjs <命令>` |
-| 安装后的业务项目根目录 | `node .ai-workflow/bin/iterlane.mjs <命令>` |
+| 试用 ZIP 解压后的目录 | `node runtime/bin/iterlane.mjs <命令>` |
+| 已安装的项目根目录 | `node .ai-workflow/bin/iterlane.mjs <命令>` |
 
-安装后的入口默认找到自己的项目；外部工具操作业务项目时，明确传 `--project <目录>`。`--json` 输出便于 AI 或程序分析，`--help` 查看当前完整参数。初始化步骤见[快速开始](../docs/quickstart.md)。
+几个通用参数：
 
-## 常用查询与检查
+- `--json`：输出 JSON，方便 AI 或程序读取。
+- `--help`：查看当前版本的全部参数。
+- `--project <目录>`：从项目外部操作某个项目时指定目录。在项目里运行时不用加。
 
-下表参数接在相应入口后面；这些查询不写业务文件。
+## 只读查询
 
-| 命令 | 核对什么 | 怎样理解结果 |
+下面这些命令只查看，不修改项目文件。
+
+| 命令 | 查什么 | 结果怎么看 |
 | --- | --- | --- |
-| `check [--package <目录> \| --project <目录>] --json` | 资源和安装完整性 | 通过不等于客户端接入或任务验收 |
-| `check --documents --json` | 增加文档引用与状态一致性检查 | 不能证明业务预期正确 |
-| `validate --state <文件> --json` | YAML 和状态字段结构 | 不核对真实批准或检查执行 |
-| `status --json` | 当前任务、等待条件和依据 | 与实际文件、记录一起判断进度 |
-| `context inspect --json` | 当前框架启动规则、项目AGENTS和地基原文及摘要 | 只读；语义完整性仍未认证，不批准任务或操作 |
-| `context guard --expected-snapshot <SHA256> --json` | 当前内容是否仍匹配此前上下文 | fresh退出0；stale/unknown非零，不能用旧摘要强行继续 |
-| `doctor --json` | 本地资源、版本、状态、日志和锁 | 退出成功表示诊断完成，健康情况看 `local_valid`、`findings` |
-| `spec check --json` | 需求、场景、任务引用和声明增量 | 检查关联与格式，不认证业务语义 |
-| `skills check --json` | 技能依赖、参考和共享资源 | 缺文件或内容漂移会报错 |
-| `artifacts inspect [--kind file\|definition] --path <相对文件>... --json` | 文件或定义的实际内容摘要 | 摘要供记录引用，重复 `--path` 可查询多文件 |
+| `check --json` | 工具和资源是否完整 | `"ok":true` 表示完整 |
+| `check --documents --json` | 加查文档引用和状态是否一致 | 同上 |
+| `status --json` | 当前任务、在等什么、依据是什么 | 看 `data` 里的内容 |
+| `doctor --json` | 工具、版本、状态、日志、锁有没有问题 | 看 `local_valid` 和 `findings`，命令成功不代表没问题 |
+| `context inspect --json` | AI 开工前要读的规则和地基约定 | 输出里的 `snapshot_sha256` 用于后续核对 |
+| `context guard --expected-snapshot <SHA256> --json` | 规则和约定在那之后有没有变 | `fresh` 表示没变；`stale` 或 `unknown` 要重新读取 |
+| `validate --state <文件> --json` | 状态文件格式是否正确 | 只查格式 |
+| `spec check --json` | 规格里的需求、场景和任务引用 | 只查关联和格式 |
+| `skills check --json` | 技能文件是否齐全 | 缺文件或内容被改会报错 |
+| `artifacts inspect --path <相对路径> --json` | 文件内容的摘要 | 可重复 `--path` 一次查多个；`--kind definition` 查任务定义 |
 
-## 客户端自检
+`check` 可以加 `--package <目录>` 检查工具包，或加 `--project <目录>` 检查项目。
+
+## 检查 AI 工具能否连通
 
 ```powershell
 node .ai-workflow/bin/iterlane.mjs doctor --client --json
 ```
 
-明确请求时才运行。它使用已有 Codex 连接配置，检查技能发现和真实只读状态查询，可能产生一次模型调用；不修改配置，也不自动重试。
+只在你需要时运行。它用你现有的 Codex 配置，检查 AI 能否发现技能、能否完成一次只读查询。
 
-可指定 `--client-cli <入口文件>` 和 `--timeout-ms <1000..180000>`。成功看 `client.status:connected`，失败看 `client.failure` 或错误中的 `details`。客户端连接问题与本地安装问题分别判断。
+- 会产生一次模型调用，可能计费。
+- 不修改配置，失败也不会自动重试。
+- 成功时退出码为 0，`data.client.status` 为 `connected`。
+- 失败时退出码为 3，输出 `"ok":false`。原因在 `error.details[0].client.failure` 里。
 
-## 会写文件的操作
+可选参数：`--client-cli <入口文件>` 指定客户端，`--timeout-ms <1000..180000>` 设超时。
 
-| 命令 | 用途与前置 |
+## 会写文件的命令
+
+这些命令会修改项目。参数里的编号、版本号和确认依据，请让 AI 按实际记录准备，不要照抄示例。能加 `--preview` 的，先预览再执行。
+
+| 命令 | 作用 |
 | --- | --- |
-| `init --project <目录> [--preview \| --repair \| --resume \| --undo] --json` | 新项目初始化、同版本补缺或未完成初始化恢复 |
-| `init --example bookmarks --project <空目录> [--preview] --json` | 初始化带收藏示例的新项目 |
-| `spec sync --iteration <路径> --task <编号> --request-id <请求编号> --expected-revision <当前版本> [--preview] --json` | 只同步当前已验收任务，执行生成收据 |
-| `context bind --iteration <路径> --task <ID> --expected-snapshot <SHA256> --expected-revision <n> --request-id <ID> --impact unaffected\|affected --reason <说明> [--preview] --json` | 当前未完成任务绑定最新规则与定义；同次登记影响说明，保持等待与批准 |
-| `transition --input <操作JSON> --json` | 使用operation v3按真实确认和记录转换状态；task_revise修订当前声明，业务record v1/v2保留 |
-| `recover` | 根据准确日志编号、内容版本和匹配来源恢复 |
-| `upgrade` / `rollback` | 按已支持的固定版本路径升级或回退 |
+| `init --project <目录> --json` | 安装到新项目。`--repair` 补缺失文件，`--resume` 继续未完成的安装，`--undo` 撤销 |
+| `init --example bookmarks --project <空目录> --json` | 安装并附带收藏示例代码 |
+| `context bind ...` | 把当前任务绑定到最新的规则和约定 |
+| `transition --input <JSON 文件> --json` | 按确认和记录推进任务状态 |
+| `spec sync ...` | 把已验收任务的变化同步到规格 |
+| `recover ...` | 按日志恢复中断的操作，或修复缺失资源 |
+| `upgrade` / `rollback` | 按已支持的固定路径升级或回退 |
 
-先核对项目、版本和授权；支持 `--preview` 的操作先查看目标和变化。编号、确认引用、JSON 输入和恢复方式由 AI 按实际记录准备，不照抄占位值。结构化接口与示例见[状态与记录工具契约](../skills/_shared/references/state-runtime.md)。
+完整参数用 `--help` 查看。JSON 输入格式见[状态与记录工具契约](../skills/_shared/references/state-runtime.md)。
 
-冲突时保留现场；资源修复不覆盖业务资料，也不借修复升级版本。恢复书签不会重做部署、Git 或数据库动作。
+遇到冲突时，工具会保留现场，不会覆盖你的业务资料。恢复操作只恢复框架记录，不会重做部署、Git 或数据库操作。
 
 ## 退出码
 
 | 代码 | 含义 |
 | --- | --- |
-| 0 | 命令运行成功；诊断是否健康仍看结果字段 |
-| 2 | 参数无效 |
+| 0 | 命令运行成功（诊断类命令要另看结果字段） |
+| 2 | 参数错误 |
 | 3 | 环境不支持 |
-| 4 | 包或依赖损坏 |
+| 4 | 工具包或依赖损坏 |
 | 5 | 格式或状态无效 |
 | 6 | 读写或构建失败 |
 | 7 | 冲突 |
-| 8 | 操作未完成或无法安全恢复 |
+| 8 | 操作未完成，或无法安全恢复 |
 
-升级、回滚和恢复仅限明确支持的来源和路径；当前支持边界见[版本说明](../docs/releasing.md)。
+支持哪些升级路径见[版本与支持范围](../docs/releasing.md)。

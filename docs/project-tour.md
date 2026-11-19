@@ -55,7 +55,7 @@ ai-workflow/                      框架源码仓库
 
 | 想知道什么 | 去哪里 |
 | --- | --- |
-| 我怎样安装并开始真实项目 | [quickstart.md](quickstart.md)：源码/ZIP安装、起步对话、地基与第一项功能 |
+| 我怎样安装并开始真实项目 | [quickstart.md](quickstart.md)：五步 ZIP 安装与起步对话；后续开发见[使用指南](usage.md) |
 | 开发时怎样确认、检查、验收和恢复 | [usage.md](usage.md)：概念、对话示例与异常处理 |
 | 命令有哪些、参数和错误码是什么 | [scripts/README.md](../scripts/README.md) |
 | 当前版本支持什么 | [releasing.md](releasing.md) |

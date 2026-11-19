@@ -25,7 +25,7 @@ Usage:
   recover [--project <directory>] --repair --package <fixed-source> [--preview] [--json]
   recover [--project <directory>] --resume|--undo --operation-id <uuid> [--package <fixed-source>] [--expected-revision <n>] [--preview] [--json]
   recover [--project <directory>] --refresh --expected-revision <n> --request-id <id> [--preview] [--json]
-  check --project <directory> --documents [--json]
+  check [--project <directory>] --documents [--json]
   transition [--project <directory>] --input <operation-json> [--json]
   transition [--project <directory>] --resume|--undo --expected-revision <integer> [--json]
   upgrade --project <directory> --from-package <fixed-dev5> --expected-revision <integer> [--preview] [--json]

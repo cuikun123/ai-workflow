@@ -1,141 +1,109 @@
-# 用 Iterlane 开始一个真实项目
+# 快速开始：五步安装到新项目
 
-这份资料从“拿到框架”带你走到“第一项真实功能验收”。你不需要先指定某个 Agent，也不需要手工填写 JSON 或记住十一项技能。你提出目标、确认关键取舍并验收；AI 调查、实施、运行检查和维护记录。更完整的对话与异常处理见[使用指南](usage.md)。
+照着做完这一页，你的新项目就装好了 Iterlane，可以开始和 AI 一起开发。全程大约 10 分钟。
 
-当前适用 Windows、本地全新项目，Node.js 要求 `>=24.18.0 <25`，既有验证使用 24.18.0。已有业务项目接管和 dev.11↔dev.12 升级尚未提供。Claude Code/Pi 的自动接入尚未完成；其他客户端也应先显式读取项目规则并验证本地工具，不能把 AGENTS.md 存在当成已经自动读取。
+## 开始前准备
 
-## 1. 准备一个完整工具包
+- 一台 Windows 电脑。
+- 安装包 **`iterlane-0.3.0-dev.12-trial.zip`**，向维护者索取。GitHub 上的“Download ZIP”是源码，不是这个安装包。
+- 两个**分开的**文件夹。本页用下面两个举例：
 
-选一种方式。安装目标要与框架源码、解压目录分开；示例的 `D:\Code\my-real-project` 可以换成你的新项目名称。
+| 文件夹 | 放什么 |
+| --- | --- |
+| `D:\Code\Iterlane` | 解压出来的安装工具 |
+| `D:\Code\my-project` | 你要开发的项目，必须是**空的** |
 
-### 手上已有试用 ZIP
+想用别的位置也可以。把下面命令里对应的路径一起换掉，双引号保留。
 
-将维护者提供的 ZIP 解压，在解压目录打开 PowerShell。`runtime/` 已有完整工具和运行依赖，不需要再克隆源码或执行 npm install。
+所有命令都在 **PowerShell** 里执行：在开始菜单搜索“PowerShell”并打开。命令里写的是完整路径，所以在哪个目录打开都行。
 
-```powershell
-node --version
-node runtime/bin/iterlane.mjs check --json
-```
-
-检查应返回 `ok:true`、当前内部候选版本 `0.3.0-dev.12`。同版本候选可能内容不同，请保留 ZIP、`delivery.json` 和 `SHA256SUMS`，核对提供者给出的准确摘要。
-
-### 手上只有框架 Git 仓库
-
-在框架源码目录运行：
+## 第 1 步：确认已安装 Node.js 24
 
 ```powershell
 node --version
-npm ci --ignore-scripts --no-audit --no-fund
-npm run build
-node dist/bin/iterlane.mjs check --json
 ```
 
-`dist/` 不在 Git 仓库中，**克隆或更新源码后必须重新构建**。构建生成完整工具、用户资料、技能、模板和许可。Node.js、源码构建依赖和客户端账户由你的环境提供，框架不替你配置模型。
+- **看到 `v24.18.0` 或更高的 `v24.x.x`**：继续下一步。
+- **提示“无法识别 node”**：先安装 [Node.js 24](https://nodejs.org/en/download)，再重新打开 PowerShell。
+- **看到其他主版本（如 `v22`、`v25`）**：换成 Node.js 24。
 
-直接使用完整工具包（tgz 解出的 `package/` 或 `dist/`）时，在包目录执行 `node bin/iterlane.mjs`；本页 ZIP 路径中的 `runtime/bin/iterlane.mjs` 相应换成 `bin/iterlane.mjs`。
+## 第 2 步：解压安装包
 
-## 2. 预览，再安装到新目录
+1. 在资源管理器里右键 ZIP，选“全部解压”。
+2. 目标文件夹填 `D:\Code\Iterlane`。
+3. 确认这个文件存在：
 
-先新建空目标。使用 ZIP 时执行：
+```text
+D:\Code\Iterlane\runtime\bin\iterlane.mjs
+```
+
+如果 `runtime` 外面多了一层文件夹，把那层里面的内容移到 `D:\Code\Iterlane` 下。
+
+## 第 3 步：检查安装包
+
+先新建空文件夹 `D:\Code\my-project`，然后执行：
 
 ```powershell
-mkdir D:\Code\my-real-project
-node runtime/bin/iterlane.mjs init --project D:\Code\my-real-project --preview --json
-node runtime/bin/iterlane.mjs init --project D:\Code\my-real-project --json
+node "D:\Code\Iterlane\runtime\bin\iterlane.mjs" check --json
 ```
 
-如果从源码构建，把两条命令里的 `runtime/bin/iterlane.mjs` 换成 `dist/bin/iterlane.mjs`，其余相同。先核对预览目标和拟写文件，再执行第二条。安装失败时保留输出和现场，让 AI 诊断，不反复覆盖或删日志。
+输出会有很多文字，这是正常的。
 
-进入真实项目，核对工具：
+- **找到 `"ok":true`**（冒号后可能有空格）：安装包完好，继续。
+- **看到 `false` 或红色报错**：先别继续。保存输出，交给维护者或 AI 排查。
+
+## 第 4 步：安装到项目
+
+**先预览**，这一步不会写任何文件：
 
 ```powershell
-cd D:\Code\my-real-project
-node .ai-workflow/bin/iterlane.mjs check --documents --json
-node .ai-workflow/bin/iterlane.mjs status --json
-node .ai-workflow/bin/iterlane.mjs context inspect --json
+node "D:\Code\Iterlane\runtime\bin\iterlane.mjs" init --project "D:\Code\my-project" --preview --json
 ```
 
-成功时 `check` 为 `ok:true`，`status` 的 `data.valid` 为 `true`，刚初始化还没有业务任务。`context inspect` 提供公共规则、项目 AGENTS 和地基原文及摘要；完整 manifest 留给工具校验，不返回全文。它们都是只读命令，不批准、启动或完成任务。
+确认输出里有 `"ok":true`，目录是你的项目。路径显示成 `D:\\Code\\my-project` 是正常的，指的是同一个目录。
 
-| 项目里的位置 | 里面有什么 | 你怎样使用 |
-| --- | --- | --- |
-| `AGENTS.md` | 项目入口、规则导航与用户约束 | 让 AI 每次接手先读 |
-| `.agents/skills/` | 当前固定版本的工作方法 | AI 按当前动作读取，通常不用你点名 |
-| `.ai-workflow/` | 工具、资源、安装身份和恢复日志 | 用项目 CLI 查询/检查；不手改清单或删除未知锁 |
-| `docs/project/overview.md` | 项目方向和实际概览 | 与 AI 明确长期目标 |
-| `docs/project/foundation/` | 工程、体验、安全、质量和运行约定 | 第一轮建立，以后变更要核对影响 |
-| `docs/iterations/` | 每轮范围、方案、任务和证据 | AI 维护，你核对目标与验收点 |
-| `docs/project/specs/` | 已经交付的有效业务行为 | AI 在验收收尾后同步 |
-| `docs/workflow/state.yaml` | 当前任务、等待和 revision | 工具维护，使用 status 查询 |
-
-初始 foundation 六份文件为空是正常的，**不等于地基已完成**。没有内容的文件需说明当前不适用或以后补充；项目必需约定和运行检查仍要在地基轮落实。
-
-## 3. 打开 AI，先确认它能使用框架
-
-在业务项目根目录打开你现有的 AI 编码客户端，发：
-
-> 这是使用 Iterlane 的全新真实项目。先读根目录 AGENTS.md，按项目安装的工作流方法使用本地工具。实际执行 check --documents、status 和 context inspect，阅读返回的当前规则与地基。先只读，告诉我安装是否完整、当前任务和等待状态、你能执行哪些本地操作及未验证的能力，不改文件、不创建任务。如果客户端没有自动加载规则，请显式读取；不要猜项目约定。
-
-AI 应提供真实命令结果，而不是只复述文档。它不能执行本地命令、发现技能或读文件时，先解决这个条件。当前框架没有为所有客户端提供自动注入或任意直接写代码前的强制拦截。
-
-如果明确需要检查**现有 Codex CLI**连接，可以运行以下命令；它会发起真实只读客户端请求，可能消耗模型额度。其他客户端不能用它证明可用，日常本地安装检查不需要运行：
+**再正式安装**：
 
 ```powershell
-node .ai-workflow/bin/iterlane.mjs doctor --client --json
+node "D:\Code\Iterlane\runtime\bin\iterlane.mjs" init --project "D:\Code\my-project" --json
 ```
 
-## 4. 提出真实目标，先建立地基
+看到 `"ok":true` 后，项目文件夹里会多出 `AGENTS.md`、`.agents`、`.ai-workflow`、`docs`。这些是框架的工具和资料，应用代码还没有开始写。
 
-直接复制并填写：
+**最后检查项目**：
 
-> 我想做【项目要解决的问题】，主要给【谁】用。第一版必须做到【最多三项成果】，暂时不做【明确排除项】。数据准备放在【本地/数据库/尚未决定】，使用环境是【你的环境】。请先讨论范围、技术方案和验收方式，暂不实施。我没选技术栈的部分请调查并推荐，说明成本和维护影响，不替我批准收费、真实数据或部署操作。
+```powershell
+node "D:\Code\my-project\.ai-workflow\bin\iterlane.mjs" check --documents --json
+node "D:\Code\my-project\.ai-workflow\bin\iterlane.mjs" status --json
+```
 
-AI 应整理第一轮 `000-foundation` 的范围、方案、可验收任务和实际检查安排。你主要核对：最小应用怎样运行、数据怎样保存、必要安全红线、检查命令、运行与恢复约定。确认它展示的具体结果后说：
+第一条有 `"ok":true`，第二条的 `data` 里有 `"valid":true`，就装好了。
 
-> 确认刚才展示的地基范围、方案、任务计划和验收方式，开始当前地基任务。每个任务先核对最新 foundation 和适用确认，建立该任务的 context bind 后再实施。完成必要检查和审查后交给我验收。
+这时还没有任何任务，`docs/project/foundation/` 下的文件也是空的，都是正常的。这些内容会在第一轮开发里补上。
 
-框架安装不自动授予 Git 提交/推送、收费服务、真实数据变更或部署权限。需要这些操作时，针对你的实际项目明确授权；不要复制他人的账号、模型配置或合成验收记录。
+## 第 5 步：让 AI 开始工作
 
-## 5. 第一项功能选一个能体验的成果
+在你的 AI 编码工具里打开 `D:\Code\my-project`，新建一个会话。
 
-地基检查通过并由你体验验收后，再提出第一项业务功能。用“用户完成什么”描述，页面、接口和数据库可以是任务内部步骤。
+**先让 AI 确认安装**，把这段发给它：
 
-> 地基验收通过。第一项功能是【完整用户成果，例如新增一条记录，刷新后仍能查到】。边界是【允许/不允许的行为】，失败时必须【预期反馈与数据保护】。先展示实现方案、任务和验收点，我确认后实施。
+> 先读项目根目录的 AGENTS.md，实际运行项目里的 status 和 context inspect，核对框架、当前任务和地基。先只读，告诉我是否安装正常，不改文件。
 
-确认之后 AI 在任务范围内持续工作。它应实际执行必要测试、检查和适用审查；独立审查能力不足时说明限制，不假称作者自查就是独立审查。交付时要求它给你实际入口、启动/体验步骤、检查结果和未验证项。
+**再告诉它你想做什么**：
 
-你体验后明确反馈：
+> 我想做【你的项目目标】，第一版需要【主要功能】。先帮我讨论范围、技术方案、地基和验收方式，暂不实施。
 
-> 【具体行为】不符合约定，当前任务还不能验收通过。请按原要求修复，重新检查后再交付。
+接下来怎么确认方案、怎么验收，见[使用指南：第一次打开项目](usage.md#第一次打开项目)。
 
-或者：
+如果 AI 没有主动读 `AGENTS.md`，直接让它读。目前不是所有 AI 工具都会自动读取。
 
-> 我已核对【实际检查的验收点】，当前【任务名】验收通过。按已有授权更新有效规格、记录并完成本任务收尾，然后说明下一步。
+## 遇到问题
 
-“继续”“看起来不错”不自动等于验收通过。规格同步和必要 Git 收尾尚未完成时，也不应把下一任务写成已经开始。
+| 看到什么 | 怎么办 |
+| --- | --- |
+| 找不到 `iterlane.mjs` | 回到第 2 步，多半是解压时多了一层文件夹 |
+| 提示没有 `package-lock.json` | 这套流程不需要 npm，从第 3 步重新开始 |
+| 输出 `ok:false` 或报错 | 保存命令和完整输出，让 AI 排查。不要删除锁文件、日志，也不要反复重装 |
+| 项目文件夹里已有代码 | 停下。目前只支持全新的空项目，不要用这套流程覆盖已有项目 |
 
-## 6. 换会话或地基变更时这样说
-
-换会话：
-
-> 接手当前项目。先读 AGENTS、overview 和最新 foundation，实际查询 status/context，核对当前任务、等待、绑定和记录。按已有适用授权只接续未完成事项，保留原验收事实，不凭上一会话记忆或最大目录编号猜下一任务。
-
-地基变更：
-
-> 我希望把【某条工程/体验/安全约定】改为【新要求】。先说明受影响的任务和已有检查，必要时修订当前任务并重新确认。更新后重新读取、绑定最新依据，再继续开发；不要手改 state 或记录块来解除等待。
-
-每个任务必须有自己的有效绑定。同一会话完成 T1，也不能用 T1 的旧绑定启动 T2。新地基是否正确、AI 是否遵守还需要实际检查；摘要和绑定仅核对资料一致性。
-
-## 7. 第一次真实试用，观察什么
-
-不需要跑框架仓库整套测试来验收你的应用，主要观察：
-
-- AI 是否确实读取规则和最新地基，能说明当前任务与等待。
-- 任务是否围绕一个完整成果，实施中是否少问无意义的确认。
-- 检查和审查是否有实际证据，未验证项是否诚实说明。
-- 你未验收时是否保持等待，换会话是否能准确接手。
-- 地基变更后是否核对影响、更新确认与绑定。
-
-遇到问题，记录触发请求、实际结果、预期行为、包版本/来源摘要和相关命令错误，涉及私人数据先脱敏。先在真实项目处理业务问题；框架疑似问题保留证据，再决定是否回到框架维护。维护者的结构导览只在源码仓库，日常使用不用加载它。
-
-详细说明：[使用指南](usage.md) · [命令参考](../scripts/README.md) · [支持范围与版本说明](releasing.md)。
+[支持范围与版本说明](releasing.md) · [使用指南](usage.md) · [命令参考](../scripts/README.md)
