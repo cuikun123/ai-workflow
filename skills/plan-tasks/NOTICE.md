@@ -84,20 +84,4 @@ SOFTWARE.
 
 本地dev.4适配：状态/文档工具和公共引用接入；许可、固定上游及原方法边界保持。
 
-## 0.3.0：U3结构与工具接入
-
-本包将入口与条件方法分层，共同规则在源码_shared单一维护，由构建复制到包内references/common并校验摘要；新任务使用完整Iterlane的v2记录/规格工具。方法可独立携带，运行功能依赖完整固定安装，不包含独立调度器。以上来源和许可原文保留为历史，不因本轮重构新增外部执行权限；本段说明当前包版本与资源布局。
-
-
-## 0.3.1修订
-
-按D135接入任务轻重、条件读取与按能力交接，保留原方法职责和全部许可；验证政策采用实际命令/观察及明确审查方式，不照搬“稍有关联即强制调用”的触发。
-
-## 0.3.2
-
-Updated shared references for artifact inspection and explicit read-only client diagnostics; original licenses preserved.
-
-
-## 0.3.3
-
-按D146同步每任务地基上下文、专用绑定与operation v3方法；业务record v1/v2及原许可保留，客户端自动事件接入不随本项提供。
+当前版本 0.3.3：每任务地基上下文、专用绑定与 operation v3 方法；业务 record v1/v2 及原许可保留。

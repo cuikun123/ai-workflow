@@ -51,21 +51,6 @@ ai-workflow/                      框架源码仓库
 | `adapters/` | 既有 Codex 接入和自检说明 | 接入维护者 | 排查现有客户端支持 | 是说明与验证入口，不等于全部客户端自动接入已实现 |
 | `profiles/` | 技术选型参考的职责说明 | 维护者、选型 AI | 考虑复用技术方案 | 当前没有已验证的现成工程预设，技术栈仍按业务选择 |
 
-### 文档：找对入口就够了
-
-| 想知道什么 | 去哪里 |
-| --- | --- |
-| 我怎样安装并开始真实项目 | [quickstart.md](quickstart.md)：五步 ZIP 安装与起步对话；后续开发见[使用指南](usage.md) |
-| 开发时怎样确认、检查、验收和恢复 | [usage.md](usage.md)：概念、对话示例与异常处理 |
-| 命令有哪些、参数和错误码是什么 | [scripts/README.md](../scripts/README.md) |
-| 当前版本支持什么 | [releasing.md](releasing.md) |
-| 框架现在做到哪、下一步是什么 | [handoff.md](handoff.md)；后续计划在 [roadmap.md](roadmap.md) |
-| 哪些规则或权限已经确认 | [decisions.md](decisions.md) |
-| 某轮到底检查过什么、哪些没通过 | [tests/README.md](../tests/README.md)：保留原失败、补验与限制 |
-| 为什么这样设计 | `docs/design/`：工作流、文档/状态、规格、Git、接入、能力与协作设计 |
-
-日常业务开发不需要读维护交接、全部设计和测试证据。它们主要解释框架自身怎样维护，安装包只保留用户资料白名单。
-
 ### 技能：方法入口，按当前阶段加载
 
 技能大致分为四组：
