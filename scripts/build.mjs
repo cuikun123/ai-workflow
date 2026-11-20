@@ -68,7 +68,7 @@ export async function buildPackage(output = join(repo, 'dist')) {
     writeFileSync(join(staging, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
     writeFileSync(join(staging, 'README.md'), `# Iterlane 工具包
 
-版本 ${metadata.version}，内部试用版。这是完整的工具包，运行时不需要源码或 npm 依赖。
+内部试用版。这是完整的工具包，运行时不需要源码或 npm 依赖。版本与支持范围见[版本与支持范围](docs/releasing.md)。
 
 ## 安装到新项目
 

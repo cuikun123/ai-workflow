@@ -75,7 +75,7 @@
 ```text
 my-app/                         # 主目录维护主分支
 my-app-worktrees/
-  003-t02-login/                 # 对应 task/003-t02-login
+  003-demo-login/                 # 对应 task/003-demo-login
 ```
 
 - 分支：`task/<迭代标识>-<任务标识>-<简短英文描述>`。
@@ -268,4 +268,4 @@ my-app-worktrees/
 
 ## 当前实现与验证
 
-Git 方法已接入现有 Skills，职责与版本见[能力索引](../../skills/README.md)。方法存在不代表账户、工具和权限齐备；实际检查、未覆盖场景及验收状态统一见[验证记录](../../tests/README.md)和[交接](../handoff.md)。
+Git 方法由现有 Skills 承载，职责与版本见[能力索引](../../skills/README.md)。方法存在不代表账户、工具和权限齐备；实际检查、未覆盖场景及验收状态统一见[验证记录](../../tests/README.md)和[交接](../handoff.md)。

@@ -4,9 +4,8 @@
 
 ## 准备环境
 
-- Windows 本地目录
-- Node.js 24.18.0
-- npm 11.16.0
+- Windows 电脑和一个本地工作目录。
+- 按[版本与支持范围](docs/releasing.md)的要求安装 Node.js，npm 随 Node.js 一起提供。
 
 在仓库根目录安装依赖：
 

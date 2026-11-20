@@ -46,6 +46,14 @@ try {
   for await (const event of run({ files: tests(join(root, 'tests')), concurrency: 1 })) events.push(event);
   const result = evaluateTestEvents(events, required.map(file => join(root, file)));
   const built = await buildPackage();
+  const generatedDocs = spawnSync(process.execPath, ['--test', 'tests/runtime/document-rules.test.mjs'], {
+    cwd: root,
+    env: {...process.env, ITERLANE_DOC_ROOT: built.output},
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 60000,
+  });
+  if (generatedDocs.status !== 0) throw new Error('Generated documentation checks failed: ' + (generatedDocs.error?.code || generatedDocs.stdout + generatedDocs.stderr));
   const artifacts = join(root, '.artifacts');
   const npmCli = process.env.npm_execpath || join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
   const packed = spawnSync(process.execPath, [npmCli, 'pack', '--ignore-scripts', '--json', '--pack-destination', artifacts], { cwd: built.output, encoding: 'utf8', windowsHide: true, timeout: 60000 });

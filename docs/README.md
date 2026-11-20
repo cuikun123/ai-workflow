@@ -4,9 +4,11 @@
 
 | 你想知道 | 读这里 |
 | --- | --- |
-| 怎么安装，怎么确认装好了 | [快速开始](quickstart.md) |
-| 装好以后怎么开发、确认和验收 | [使用指南](usage.md) |
+| 怎么安装到新项目、怎么确认装好（装好即结束） | [快速开始](quickstart.md) |
+| 装好以后怎么开发、确认和验收（长期阅读） | [使用指南](usage.md) |
+| 示例项目有哪些、怎么运行 | [示例总览](../examples/README.md) |
 | 先看一个做好的应用 | [收藏示例](../examples/bookmarks/README.md) |
+| 用哪个 AI 客户端、怎么接入 | [客户端接入](../adapters/codex/README.md) |
 | 有哪些技能，什么时候用 | [技能索引](../skills/README.md) |
 | 命令、参数和输出 | [命令参考](../scripts/README.md) |
 | 当前版本支持什么、不支持什么 | [版本与支持范围](releasing.md) |
@@ -16,7 +18,7 @@
 
 ## 维护框架
 
-先读[贡献说明](../CONTRIBUTING.md)、[仓库协作规则](../AGENTS.md)和[当前交接](handoff.md)。
+维护本框架先读三份：[贡献说明](../CONTRIBUTING.md)（人类贡献者怎么装环境、跑检查、构建）、[仓库协作规则](../AGENTS.md)（在本仓库工作的 AI 遵循的协作规则）、[当前交接](handoff.md)（现在做什么、下一步）。
 
 | 你想知道 | 读这里 |
 | --- | --- |
@@ -36,7 +38,8 @@
 | --- | --- |
 | 目标与适用范围 | [愿景](design/vision.md) |
 | 开发顺序、确认、检查和验收 | [开发流程](design/workflow.md) |
-| 项目文件的职责、状态和写入 | [文档管理](design/documents.md) |
+| 项目文件的结构与职责 | [文档管理](design/documents.md) |
+| 状态书签、记录与写入契约 | [状态、记录与写入契约](design/state-contract.md) |
 | 需求、场景和规格同步 | [规格契约](design/spec-format.md) |
 | Git 保存、PR、合入和清理 | [Git 工作流](design/git-workflow.md) |
 | 安装、诊断、恢复和版本 | [接入设计](design/integration.md) |

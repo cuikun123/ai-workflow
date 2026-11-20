@@ -5,7 +5,7 @@
 ## 开始前准备
 
 - 一台 Windows 电脑。
-- 安装包 **`iterlane-0.3.0-dev.12-trial.zip`**，向维护者索取。GitHub 上的“Download ZIP”是源码，不是这个安装包。
+- 当前试用安装包 ZIP，向维护者索取。GitHub 上的“Download ZIP”是源码，不是这个安装包。
 - 两个**分开的**文件夹。本页用下面两个举例：
 
 | 文件夹 | 放什么 |
@@ -17,15 +17,15 @@
 
 所有命令都在 **PowerShell** 里执行：在开始菜单搜索“PowerShell”并打开。命令里写的是完整路径，所以在哪个目录打开都行。
 
-## 第 1 步：确认已安装 Node.js 24
+## 第 1 步：确认已安装受支持的 Node.js
 
 ```powershell
 node --version
 ```
 
-- **看到 `v24.18.0` 或更高的 `v24.x.x`**：继续下一步。
-- **提示“无法识别 node”**：先安装 [Node.js 24](https://nodejs.org/en/download)，再重新打开 PowerShell。
-- **看到其他主版本（如 `v22`、`v25`）**：换成 Node.js 24。
+- **看到版本号且符合[版本与支持范围](releasing.md)中的 Node.js 要求**：继续下一步。
+- **提示“无法识别 node”**：按[版本与支持范围](releasing.md)安装受支持的 Node.js，再重新打开 PowerShell。
+- **看到的版本不符合要求**：按版本说明安装受支持的 Node.js。
 
 ## 第 2 步：解压安装包
 
