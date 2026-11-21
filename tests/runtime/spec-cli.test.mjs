@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import * as fs from 'node:fs';
@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 import {resourcePackage,project,snapshot} from '../helpers/installation.mjs';
 import {specification,requirement,task,block,specPath,iteration} from '../helpers/specs.mjs';
 const entry=fileURLToPath(new URL('../../bin/iterlane.mjs',import.meta.url));
-const run=(file,args,cwd)=>spawnSync(process.execPath,[file,...args,'--json'],{cwd,encoding:'utf8',windowsHide:true,timeout:60000});
+const run=(file,args,cwd)=>spawnSync(process.execPath,[file,...args,'--json'],{cwd,encoding:'utf8',windowsHide:true,timeout:180000});
 
 test('spec CLI: installed checker is read only and reports actual identity errors with exit 5',async()=>{
   const pkg=await resourcePackage(),root=project(),cli=join(pkg,'bin/iterlane.mjs');

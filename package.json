@@ -12,7 +12,8 @@
     "test": "node --test",
     "build": "node scripts/build.mjs",
     "check": "node bin/iterlane.mjs check",
-    "ci": "node scripts/ci.mjs"
+    "ci": "node scripts/ci.mjs",
+    "ci:fast": "node scripts/ci.mjs --fast"
   },
   "dependencies": {
     "ajv": "8.20.0",

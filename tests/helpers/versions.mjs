@@ -1,13 +1,14 @@
 import fs from 'node:fs';import {join} from 'node:path';import {spawnSync} from 'node:child_process';import {fileURLToPath} from 'node:url';import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {project,snapshot} from './installation.mjs';
+import {extractTgz} from './tgz.mjs';
 export {snapshot,project};
 export async function versionPackages(){
   const extracted=[];
   for(const version of ['0.3.0-dev.5','0.3.0-dev.6']){
     const root=project(),archive=fileURLToPath(new URL('../fixtures/iterlane-'+version+'.tgz',import.meta.url));
     if(version==='0.3.0-dev.6')assert.equal(createHash('sha256').update(fs.readFileSync(archive)).digest('hex'),'144e327b3d8ea284b54bc00318b2b403ac17341b1b07ed5eaa15d72db5ae4e34','Fixed dev.6 delivery must retain its original bytes');
-    const result=spawnSync('tar',['-xzf',archive,'-C',root],{windowsHide:true,encoding:'utf8'});assert.equal(result.status,0,result.stderr);
+    const result=extractTgz(archive,root);
     extracted.push(join(root,'package'));
   }
   return {old:extracted[0],next:extracted[1]};
