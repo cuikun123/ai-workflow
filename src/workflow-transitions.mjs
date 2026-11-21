@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';import {parseDocument} from 'yaml';
-import {taskVerificationPolicy,verificationIssues} from './verification-policy.mjs';
+import {taskVerificationPolicy} from './verification-policy.mjs';
+import {inspectConfirmations,inspectTaskPrerequisites,inspectCandidatePrerequisites,assertWorkflowPrerequisites} from './workflow-prerequisites.mjs';
 import {WorkflowError} from './errors.mjs';import {sha256} from './package.mjs';import {validateStateYaml} from './state.mjs';
 import {loadWorkflowView,inspectWorkflowView,emptyPosition,positionFromState} from './workflow-status.mjs';
 import {appendWorkflowRecord,replaceWorkflowRecord,parseWorkflowDocument,validateWorkflowRecord,definitionDigest} from './workflow-docs.mjs';
@@ -43,43 +44,10 @@ export function planWorkflowTransition(root,request,{operationId=randomUUID(),no
   const append=(record,path=record.iteration+'/verification.md')=>{validateWorkflowRecord(record,path);documents.set(path,documentBytes(path,appendWorkflowRecord(getDoc(path).text,record,path)));};
   const matches=(record,current=true)=>record.data.artifacts.every(artifact=>checkArtifact(root,artifact,{read:readFile,current}).valid);
   const sameSubject=record=>record.iteration===afterState.current_iteration&&(record.task===afterState.current_task||record.task===null&&record.kind==='confirmation'&&['scope','design','plan'].includes(record.data.purpose));
-  const stageBound=(record,purpose)=>{const name={scope:'scope',design:'design',plan:'tasks'}[purpose];if(!name)return true;const path=afterState.current_iteration+'/'+name+'.md';return record.data.artifacts.some(a=>a.kind==='git'?a.scope.some(scope=>path===scope||path.startsWith(scope+'/')):a.path===path);};
-  function confirmation(purpose,refs){
-    if(!Array.isArray(refs))fail('Confirmation references must be an array');
-    const selected=(refs||[]).map(ref=>getRef(ref,'confirmation')).filter(r=>r.data.purpose===purpose&&sameSubject(r)&&stageBound(r,purpose));
-    if(!selected.length)fail('Required user confirmation record is missing: '+purpose);
-    const doc=getDoc(afterState.current_iteration+'/verification.md');
-    const relevant=[...doc.records.values()].filter(r=>r.kind==='confirmation'&&r.data.purpose===purpose&&sameSubject(r)&&matches(r)&&selected.some(s=>artifactsKey(s.data.artifacts)===artifactsKey(r.data.artifacts)));
-    const removed=new Set();for(const r of relevant)for(const ref of r.data.supersedes){const old=getRef(ref,'confirmation');if(old.data.purpose!==purpose||old.iteration!==r.iteration||old.task!==r.task||artifactsKey(old.data.artifacts)!==artifactsKey(r.data.artifacts))fail('Confirmation cannot supersede another object');removed.add(ref.path+'#'+ref.record_id);}
-    if(relevant.some(r=>r.data.result==='rejected'&&!removed.has(doc.path+'#'+r.id)))fail('Current confirmation records conflict or reject the object');
-    const good=selected.find(r=>r.data.result==='approved'&&matches(r)&&!removed.has(doc.path+'#'+r.id));if(!good)fail('Confirmation is stale, rejected or superseded');return good;
-  }
-  function phaseGate(){
-    const refs=afterState.confirmation_refs;
-    if(afterState.phase==='clarify')return;
-    if(afterState.phase==='plan'){confirmation('scope',refs);confirmation('design',refs);return;}
-    if(['build','execute'].includes(afterState.phase)){
-      if(!task)fail('Implementation needs a declared task');for(const kind of ['scope','design','plan'])confirmation(kind,refs);
-      for(const name of ['scope','design'])if(!getDoc(afterState.current_iteration+'/'+name+'.md').body.trim())fail('Implementation input is empty');
-      for(const ref of task.data.depends_on){const dependency=getRef(ref,'task');const progress=dependency.data.progress;if(progress?.status!=='completed'||!progress.closeout_ref)fail('Task dependency has not completed closeout');const close=getRef(progress.closeout_ref,'closeout');if(close.task!==dependency.id||close.iteration!==dependency.iteration)fail('Dependency closeout names another task');const approvals=progress.confirmation_refs.map(r=>getRef(r,'confirmation'));if(!approvals.some(r=>r.data.purpose==='task_acceptance'&&r.data.result==='approved'&&r.task===dependency.id&&artifactsKey(r.data.artifacts)===artifactsKey(close.data.artifacts)))fail('Dependency has no matching historical acceptance');}
-      return;
-    }
-    if(['release','maintenance'].includes(afterState.phase)){confirmation('operation_authorization',refs);return;}
-    if(afterState.phase==='closeout')confirmation('task_acceptance',refs);
-  }
-  function checks(){
-    if(!task||!position.check_refs.length||!position.review_refs.length)fail('Checks and required review records are required');
-    if(task.record_version===2&&task.data.verification_policy){
-      const doc=getDoc(task.iteration+'/verification.md'),selected=position.confirmation_refs.filter(ref=>{const r=getRef(ref,'confirmation');return r.data.purpose==='plan';});
-      const refs=selected.length?selected:[...doc.records.values()].filter(r=>r.kind==='confirmation'&&r.data.purpose==='plan'&&sameSubject(r)).map(r=>({path:doc.path,record_id:r.id}));
-      confirmation('plan',refs);
-    }
-    const all=[];
-    for(const ref of position.check_refs){const record=getRef(ref,'check');if(record.data.method===contextMethod)contextError('CONTEXT_BINDING_NOT_BUSINESS_CHECK','Context binding cannot replace a required business check',ref.path);if(!sameSubject(record)||record.task!==task.id||record.data.result!=='passed'||!matches(record)||!record.data.evidence.every(a=>checkArtifact(root,a,{read:readFile}).valid))fail('Check record is incomplete or stale');all.push(record);}
-    for(const ref of position.review_refs){const record=getRef(ref,'review');if(!sameSubject(record)||record.task!==task.id||record.data.result!=='passed'||record.data.must_fix_open!==0||!matches(record))fail('Required review is missing, stale or has open findings');all.push(record);}
-    const policyIssues=verificationIssues(task,all.filter(r=>r.kind==='check'),all.filter(r=>r.kind==='review'));if(policyIssues.length)fail(policyIssues.map(i=>i.message).join('; '));
-    const key=artifactsKey(all[0].data.artifacts);if(all.some(r=>artifactsKey(r.data.artifacts)!==key))fail('Checks refer to different candidate content');return key;
-  }
+  const prerequisiteView=()=>({root,state:afterState,readFile,getDoc,getRef,getTask});
+  const confirmation=(purpose,refs)=>assertWorkflowPrerequisites(inspectConfirmations(prerequisiteView(),{purpose,refs})).record;
+  const phaseGate=()=>assertWorkflowPrerequisites(inspectTaskPrerequisites(prerequisiteView(),{task,position:{...position,phase:afterState.phase,confirmation_refs:afterState.confirmation_refs}}));
+  const checks=()=>assertWorkflowPrerequisites(inspectCandidatePrerequisites(prerequisiteView(),{task,position,requireAcceptance:false})).artifacts_key;
   function checkpoint(reason){if(!afterState.current_iteration)fail('There is no work to checkpoint');const record={record_version:task?.record_version||1,id:'checkpoint-'+operationId,kind:'checkpoint',iteration:afterState.current_iteration,task:afterState.current_task,source:{role:'tool',reference:'operation:'+operationId,text:'Recorded previous position; not a new approval'},data:{revision:beforeState.revision,reason,position:structuredClone(position)}};append(record);return {path:record.iteration+'/verification.md',record_id:record.id};}
   const args=(required,optional=[])=>{if(Object.keys(data).some(k=>![...required,...optional].includes(k))||required.some(k=>data[k]===undefined))fail('Unknown or missing operation argument');};
   const stagePurposes=['scope','design','plan'],waitingPurpose=beforeState.waiting_for==='scope_confirmation'?'scope':beforeState.waiting_for==='plan_confirmation'?'plan':beforeState.waiting_for;
@@ -108,7 +76,7 @@ export function planWorkflowTransition(root,request,{operationId=randomUUID(),no
       args(['iteration','task','expected_definition_sha256','reason','declaration']);
       if(!task||data.iteration!==beforeState.current_iteration||data.task!==task.id||beforeState.status==='completed'||task.data.progress?.status==='completed')fail('Only the current unfinished task can be revised');
       const path=task.iteration+'/tasks.md';if(data.expected_definition_sha256!==definitionDigest(getDoc(path)))fail('Task definition changed before revision');
-      if(typeof data.reason!=='string'||!data.reason.trim()||data.reason.length>4096||!data.declaration||typeof data.declaration!=='object'||Array.isArray(data.declaration)||Object.keys(data.declaration).some(k=>!['title','depends_on','requirements','delta_refs','scenario_refs','spec_change_reason','execution_mode','execution_reason','verification_policy'].includes(k)))fail('Invalid task declaration revision');
+      if(typeof data.reason!=='string'||!data.reason.trim()||data.reason.length>4096||!data.declaration||typeof data.declaration!=='object'||Array.isArray(data.declaration)||Object.keys(data.declaration).some(k=>!['title','depends_on','requirements','delta_refs','scenario_refs','spec_change_reason','execution_mode','execution_reason','verification_policy','guard_policy'].includes(k)))fail('Invalid task declaration revision');
       task={...task,data:{...data.declaration,phase:task.data.phase,progress:structuredClone(position)}};validateWorkflowRecord(task,path);documents.set(path,documentBytes(path,replaceWorkflowRecord(getDoc(path).text,task,path)));
       const evidence=task.iteration+'/verification.md';documents.set(evidence,documentBytes(evidence,getDoc(evidence).text+'\n### Task revision: '+task.id+'\n\n'+quoteReason(data.reason)+'\n'));break;
     }

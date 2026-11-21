@@ -52,7 +52,7 @@ export async function buildPackage(output = join(repo, 'dist')) {
     // Validate the intact previous build against its own recorded skill layout.
     // New staging output is still checked against the current source policy.
     const shared=join(output,'resources/skills/_shared'),previousPolicy=validateSkillManifest(JSON.parse(readFileSync(resolveRegularFile(shared,'manifest.json'),'utf8')));
-    previousExpectation={skillManifest:previousPolicy,sharedDigests:sourceSharedDigests(shared,previousPolicy)};
+    previousExpectation={skillManifest:previousPolicy,sharedDigests:sourceSharedDigests(shared,previousPolicy),previousBuild:true};
     checkPackage(output,previousExpectation);
   }
   const staging = output + '.staging-' + randomUUID(), previous = output + '.previous-' + randomUUID();
@@ -62,6 +62,7 @@ export async function buildPackage(output = join(repo, 'dist')) {
     mkdirSync(join(staging, 'runtime'));
     mkdirSync(join(staging,'resources'),{recursive:true});const rendered=renderSkillResources(join(repo,'skills'),join(staging,'resources/skills'));
     await build({ absWorkingDir:repo, entryPoints: [join(repo, 'src/cli.mjs')], outfile: join(staging, 'runtime/cli.mjs'), bundle: true, platform: 'node', target: 'node24', format: 'esm', sourcemap: false, legalComments: 'inline',define:{__ITERLANE_SHARED_DIGESTS__:JSON.stringify(rendered.expectedDigests)}, banner: { js: 'import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);' } });
+    await build({ absWorkingDir:repo, entryPoints: [join(repo, 'src/guard-runtime.mjs')], outfile: join(staging, 'runtime/guard.mjs'), bundle: true, platform: 'node', target: 'node24', format: 'esm', sourcemap: false, legalComments: 'inline',define:{__ITERLANE_SHARED_DIGESTS__:JSON.stringify(rendered.expectedDigests)}, banner: { js: 'import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);' } });
     mkdirSync(join(staging, 'bin'));
     writeFileSync(join(staging, 'bin/iterlane.mjs'), '#!/usr/bin/env node\nimport {fileURLToPath} from "node:url";\ntry { const { runCli } = await import("../runtime/cli.mjs"); process.exitCode = await runCli(process.argv.slice(2), { packageRoot: fileURLToPath(new URL("../", import.meta.url)) }); } catch { process.stdout.write(JSON.stringify({ok:false,error:{code:"PACKAGE_INVALID",message:"Packaged runtime is missing or damaged",details:[]}})+"\\n"); process.exitCode=4; }\n');
     const pkg = { name: metadata.name, version: metadata.version, private: true, type: 'module', description: metadata.description, license: metadata.license, engines: metadata.engines, bin: { [metadata.name]: 'bin/iterlane.mjs' } };
@@ -99,6 +100,7 @@ Copyright (c) 2026 TY。整体 [MIT](LICENSE)，第三方完整许可见 THIRD_P
     cpSync(join(repo, 'schemas/state-v1.schema.json'), join(staging, 'resources/schemas/state-v1.schema.json'));
     cpSync(join(repo, 'schemas/workflow-record-v1.schema.json'), join(staging, 'resources/schemas/workflow-record-v1.schema.json'));
     cpSync(join(repo, 'schemas/workflow-record-v2.schema.json'), join(staging, 'resources/schemas/workflow-record-v2.schema.json'));
+    for(const name of ['guard-request.schema.json','guard-result.schema.json'])cpSync(join(repo,'schemas',name),join(staging,'resources/schemas',name));
     copyTree(join(repo, 'sources'), join(staging, 'resources/sources'), path => isUserPackageResource('resources/sources/' + path, declared));
     copyPackageDocuments(repo, staging);
     const { text, deps } = notices(); writeFileSync(join(staging, 'THIRD_PARTY_NOTICES.md'), text);

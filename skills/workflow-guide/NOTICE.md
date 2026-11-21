@@ -98,4 +98,36 @@ SOFTWARE.
 
 本地dev.4适配：状态/文档工具和公共引用接入；许可、固定上游及原方法边界保持。
 
+## Superpowers：按需发现方法
+
+固定来源：https://github.com/obra/superpowers/tree/22f0b463e7a5e579904dd6211a520321035526f7
+
+实际适配skills/using-superpowers/SKILL.md（SHA-256：82c5c8866ad7f5dd4440ce66bd7806ba48a2f13771beae5cf112e53f08fe36ba）的原生发现、先看元数据和相关方法后展开的原则。不采用1%相关即强制调用规则、全量触发、配置修改或自动Git。关联Codex参考已核对，配置/模型/提交建议未引入。
+
+完整原许可（LICENSE原字节）：
+
+```text
+MIT License
+
+Copyright (c) 2025 Jesse Vincent
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
 当前版本 0.3.3：每任务地基上下文、专用绑定与 operation v3 方法；业务 record v1/v2 及原许可保留。

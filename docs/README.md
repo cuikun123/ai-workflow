@@ -40,6 +40,7 @@
 | 开发顺序、确认、检查和验收 | [开发流程](design/workflow.md) |
 | 项目文件的结构与职责 | [文档管理](design/documents.md) |
 | 状态书签、记录与写入契约 | [状态、记录与写入契约](design/state-contract.md) |
+| 工具操作的共享前置校验 | [共享工具门槛设计](design/tool-guard.md) |
 | 需求、场景和规格同步 | [规格契约](design/spec-format.md) |
 | Git 保存、PR、合入和清理 | [Git 工作流](design/git-workflow.md) |
 | 安装、诊断、恢复和版本 | [接入设计](design/integration.md) |

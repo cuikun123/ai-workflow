@@ -239,7 +239,7 @@ export function inspectSpecifications(root,{read=path=>readProjectFile(root,path
       if(!t.data.scenario_refs?.some(s=>sceneKey(s)===sceneKey(ref)))note('UNLINKED_SCENARIO',path,'Evidence scene is not associated with the task',r.id);
     }
   }
-  for(const {record:t,path}of selected)if(t.record_version===2&&t.data.verification_policy){
+  for(const {record:t,path}of selected)if(t.record_version===2&&(t.data.verification_policy||t.data.guard_policy)){
     const taskDoc=documents.get(path),verificationDoc=documents.get(t.iteration+'/verification.md');
     if(taskDoc){const doc=verificationDoc||{path:t.iteration+'/verification.md',records:new Map()};for(const problem of planBindingIssues(t,doc,definitionDigest(taskDoc),candidateKey))note(problem.code,path,problem.message,t.id);}
   }

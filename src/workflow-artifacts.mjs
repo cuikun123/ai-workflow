@@ -1,13 +1,9 @@
-import * as fs from 'node:fs';import {resolve} from 'node:path';import {spawnSync} from 'node:child_process';
+import * as fs from 'node:fs';import {resolve} from 'node:path';import {readGit} from './git-read.mjs';
 import {readProjectFile,projectPath} from './project-paths.mjs';import {sha256} from './package.mjs';
 import {validateArtifactShape,parseWorkflowDocument,definitionDigest,canonicalJson} from './workflow-docs.mjs';
 
 export const artifactsKey=artifacts=>canonicalJson(artifacts.map(a=>a.kind==='git'?{...a,scope:[...a.scope].sort()}:a).sort((a,b)=>canonicalJson(a).localeCompare(canonicalJson(b))));
-function git(root,args){
-  const env={...process.env,GIT_OPTIONAL_LOCKS:'0',GIT_NO_LAZY_FETCH:'1'};
-  for(const key of Object.keys(env))if(/^GIT_(DIR|WORK_TREE|COMMON_DIR|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|CONFIG_|CONFIG_PARAMETERS)/u.test(key))delete env[key];
-  return spawnSync('git',['--literal-pathspecs','-C',root,'-c','core.fsmonitor=false','-c','core.untrackedCache=false','-c','core.quotepath=false',...args],{encoding:'utf8',env,windowsHide:true,timeout:5000,maxBuffer:16*1024*1024});
-}
+const git=readGit;
 export function checkArtifact(root,artifact,{read=path=>readProjectFile(root,path,8*1024*1024),current=true}={}){
   validateArtifactShape(artifact);
   if(artifact.kind!=='git'){

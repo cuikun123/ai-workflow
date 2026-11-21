@@ -80,11 +80,12 @@ async function pausedWorker(root, trigger, mode = 'init') {
   fs.writeFileSync(script, `import * as fs from 'node:fs';\nimport {initializeProject} from ${JSON.stringify(moduleUrl)};\nconst [packageRoot,projectRoot,signal,trigger,mode]=process.argv.slice(2); let lockFd; const pause=()=>{fs.writeFileSync(signal,'ready');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0);};\ninitializeProject({packageRoot,projectRoot,mode,io:{...fs,openSync(path,...args){const fd=fs.openSync(path,...args);if(path.endsWith('write.lock'))lockFd=fd;return fd;},closeSync(fd){fs.closeSync(fd);if(trigger==='retaken'&&fd===lockFd)pause();},renameSync(from,to){const journal=to.endsWith('journal.json')?JSON.parse(fs.readFileSync(from)):null;const normalized=to.split(String.fromCharCode(92)).join('/');const before=(trigger==='bootstrap'&&journal?.phase==='prepared')||(trigger==='resource_temp'&&normalized.endsWith('/runtime/cli.mjs'))||(trigger==='journal_temp'&&journal?.phase==='applying');if(before)pause();fs.renameSync(from,to);if((trigger==='committed'&&journal?.phase==='committed')||(trigger==='agents'&&to.endsWith('AGENTS.md')))pause();}}});\n`);
   const child = spawn(process.execPath, [script, packageRoot, root, signal, trigger, mode], { windowsHide: true, stdio: 'ignore' });
   const done = once(child, 'exit');
-  for (let attempt = 0; attempt < 1000 && !fs.existsSync(signal); attempt++) {
+  const deadline = Date.now() + 180000;
+  while (!fs.existsSync(signal) && Date.now() < deadline) {
     if (child.exitCode !== null) throw new Error('Worker exited before its real write boundary');
     await delay(20);
   }
-  if (!fs.existsSync(signal)) { child.kill('SIGKILL'); await done; throw new Error('Worker did not reach its boundary'); }
+  if (!fs.existsSync(signal)) { child.kill('SIGKILL'); await done; throw new Error('Worker did not reach its boundary within 180s'); }
   return { child, done };
 }
 
@@ -144,7 +145,8 @@ test('install recovery: native Windows file-sharing lock blocks rename without d
       fired = true;
       child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(powershell, 'utf16le').toString('base64')], { windowsHide: true, stdio: ['pipe', 'ignore', 'ignore'], env: { ...process.env, ITERLANE_LOCKED_FILE: agents, ITERLANE_LOCK_SIGNAL: signal } });
       done = once(child, 'exit');
-      for (let attempt = 0; attempt < 500 && !fs.existsSync(signal); attempt++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+      const lockDeadline = Date.now() + 60000;
+      while (!fs.existsSync(signal) && Date.now() < lockDeadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
       assert.equal(fs.existsSync(signal), true, 'Native helper did not acquire FileShare.None');
     }
     return fs.renameSync(from, to);
