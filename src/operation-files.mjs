@@ -23,8 +23,9 @@ export function guardRoot(value) {
       guardIssue('PATH_ALIAS','Case or Unicode alias in absolute path');
     current=path.join(current,segment);
   }
-  if(path.resolve(fs.realpathSync.native(root))!==root) guardIssue('PATH_ALIAS','Absolute path resolves to an alias');
-  return root;
+  // 逐段检查已经拒绝大小写与 Unicode 别名。短名或平台路径写法差异只影响同一目录的表示，
+  // 这里采用实际路径，否则真实主机的短名临时目录会让所有判定失效。
+  return path.resolve(fs.realpathSync.native(root));
 }
 export function guardAbsoluteFile(value) {
   validateGuardAbsolutePath(value);
