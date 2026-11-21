@@ -18,6 +18,16 @@
 
 任务与delta归属在展示范围/设计/计划时一起核对；可以准备草案，真实确认后才实施。记录注册次序可先task再delta，全部关联齐全后再次spec check、获取最终definition摘要。不要把补写字段当新批准或把未确认变化自动改绑旧确认。政策/定义变化会使原计划确认失效，status/spec指出STALE_PLAN_CONFIRMATION；按[state-runtime](state-runtime.md#每任务读取与绑定)通过task_revise修订声明、登记适用的新计划确认，再bind/start/verify；不能用refresh、新check或直接verify替代批准与绑定。缺失必需证据仍不能进入验收。
 
+## 工程执行范围与操作授权
+
+需要共享门槛核对工具操作时，v2 task 的 data.guard_policy 随任务声明或 task_revise 登记。workspace 的 worktree_root、git_common_dir 使用实际绝对目录；task_branch、main_branch 使用准确分支。write_paths 与 closeout_paths 每项给 path 和 recursive，区分单文件与整个子目录，不用自由通配符。
+
+commands 每项给 executable、executable_sha256、argv 和 cwd。它们对应实际可执行文件、文件内容摘要、完整字面参数数组和项目相对工作目录；根目录用「.」。保留空参数，不拼接 shell 字符串。变更范围、命令或目录须修订任务定义，核对新的计划确认和绑定。
+
+operation_authorization confirmation 可增加 operation_scope。actions 指明准确操作，binding=task 绑定当前任务定义；binding=candidate 另给 candidate_commit，绑定固定提交。反馈修复使用 task.repair，并以 tasks definition artifact 绑定具体任务。确认的结果、取代关系及实际对象仍由原记录流程核对，声明字段不制造批准。
+
+涉及 Git 的 scope 另给 git_common_dir、worktree_root、source_branch、remote_name、remote_url 和 target_branch。集成用 check.operation_context 表达 git.integration 及准确仓库、远端、目标分支、base_commit、candidate_commit、pr；这种记录不加入产品 check_refs，也不替代产品验证或验收。
+
 ## 检查与验收记录
 
 v2 check通过check_type声明test_suite/command/observation。test_suite需实际命令、exit_code=0、test_count>=1；command需实际命令、exit_code=0、test_count=null；observation的三项执行字段均null，并给method/expected/actual与证据。所有必需类型和必测场景须有适用通过引用；失败或not_run/not_applicable不能充当通过，未执行给reason且exit_code/test_count=null。review的mode须与政策匹配，result=passed、must_fix_open=0，context_id定位真实上下文；simplified只用于低影响非业务，不能称独立审查。

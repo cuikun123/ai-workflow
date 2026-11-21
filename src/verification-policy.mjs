@@ -3,7 +3,7 @@ const fail=message=>{throw new WorkflowError('STATE_INVALID',message);};
 const types=['test_suite','command','observation'];
 const sameScene=(a,b)=>a.requirement_id===b.requirement_id&&a.scenario_id===b.scenario_id;
 export function planBindingIssues(task,doc,digest,key){
- const position=task.data.progress;if(task.record_version!==2||!task.data.verification_policy||!position||['not_started','completed'].includes(position.status))return [];
+ const position=task.data.progress;if(task.record_version!==2||!(task.data.verification_policy||task.data.guard_policy)||!position||['not_started','completed'].includes(position.status))return [];
  const path=task.iteration+'/tasks.md',plans=[...doc.records.values()].filter(r=>r.kind==='confirmation'&&r.data.purpose==='plan'&&r.iteration===task.iteration&&(r.task===null||r.task===task.id));
  const selected=(position.confirmation_refs||[]).filter(ref=>ref.path===doc.path).map(ref=>doc.records.get(ref.record_id)).filter(r=>plans.includes(r));
  const bound=r=>r.data.artifacts.some(a=>a.kind==='definition'&&a.path===path&&a.sha256===digest),current=plans.filter(bound),pool=selected.length?selected:plans,removed=new Set();
@@ -31,9 +31,10 @@ export function taskVerificationPolicy(task){
 }
 export function verificationIssues(task,checks,reviews){
  const p=taskVerificationPolicy(task),issues=[],note=(code,message)=>issues.push({code,message});
- const businessChecks=checks.filter(c=>c?.data.method!=='iterlane.foundation-context/v1');
+ const businessChecks=checks.filter(c=>c?.data.method!=='iterlane.foundation-context/v1'&&c?.data.operation_context?.kind!=='git.integration');
  for(const c of checks){
   if(c?.data.method==='iterlane.foundation-context/v1'){note('INVALID_REQUIRED_CHECK','Task context binding is not a business verification check');continue;}
+  if(c?.data.operation_context?.kind==='git.integration'){note('INVALID_REQUIRED_CHECK','Git integration context is not a business verification check');continue;}
   if(!c||c.kind!=='check'||c.task!==task.id||c.iteration!==task.iteration||c.data.result!=='passed'||task.record_version===2&&c.record_version!==2){note('INVALID_REQUIRED_CHECK','Check does not pass for this task');continue;}
   const d=c.data,t=d.check_type||'test_suite';
   if(t==='test_suite'&&(!d.command?.trim()||d.exit_code!==0||!Number.isSafeInteger(d.test_count)||d.test_count<1)||t==='command'&&(!d.command?.trim()||d.exit_code!==0||d.test_count!==null)||t==='observation'&&(d.command!==null||d.exit_code!==null||d.test_count!==null||!d.method?.trim()||!d.expected?.trim()||!d.actual?.trim()))note('INVALID_REQUIRED_CHECK','Passing check execution/observation fields are incomplete');

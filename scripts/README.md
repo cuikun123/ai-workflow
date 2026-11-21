@@ -36,6 +36,16 @@
 
 `check` 可以加 `--package <目录>` 检查工具包，或加 `--project <目录>` 检查项目。
 
+## 检查工具操作
+
+开发者可把实际工具参数写入 UTF-8 JSON 请求，再用 `guard check` 读取并判断。该命令只返回 allow、deny 或 unknown，不执行请求里的文件修改、工程命令或 Git 操作。
+
+```powershell
+node .ai-workflow/bin/iterlane.mjs guard check --project <项目目录> --input <请求文件> --json
+```
+
+只有 allow 的退出码为 0；deny 为 7；unknown 为 8；请求格式不正确为 2。它使用项目当前安装的框架与工作流记录。平台集成观察只能由受控模块调用方提供，命令行不接受模型提交的平台结果，因此最终 PR 集成在命令行返回 unknown。
+
 ## 检查 AI 工具能否连通
 
 ```powershell

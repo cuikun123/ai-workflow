@@ -4,12 +4,15 @@ import { fileURLToPath } from 'node:url';
 import { TextDecoder } from 'node:util';
 import { checkPackage, sha256 } from './package.mjs';
 import { WorkflowError, asWorkflowError, exitCodes } from './errors.mjs';
+import { assertSafeRoot } from './paths.mjs';
+import { guardRequestBytes, parseGuardRequest } from './guard-request.mjs';
 import metadata from '../package.json' with { type: 'json' };
 
 const help = `Iterlane development tools ${metadata.version}
 Usage:
   --help
   --version
+  guard check --project <directory> --input <request-json> [--json]
   check [--package <directory> | --project <directory>] [--json]
   validate --state <file> [--json]
   artifacts inspect [--project <directory>] [--kind file|definition] --path <relative-file>... [--json]
@@ -38,18 +41,20 @@ function parse(args) {
   const json = args.includes('--json'); args = args.filter(value => value !== '--json');
   if (args.length === 1 && ['--help', '-h', '--version'].includes(args[0])) return { command: args[0], json };
   const command = args.shift();
+  const guardAction=command==='guard'?args.shift():null;
+  if(command==='guard'&&guardAction!=='check')throw new WorkflowError('USAGE','Expected guard check');
   const contextAction=command==='context'?args.shift():null;
   if(command==='context'&&!['inspect','guard','bind'].includes(contextAction))throw new WorkflowError('USAGE','Expected context inspect, guard or bind');
   if(command==='artifacts'&&args.shift()!=='inspect')throw new WorkflowError('USAGE','Expected artifacts inspect');
   if(command==='skills'&&args.shift()!=='check')throw new WorkflowError('USAGE','Expected skills check');
   const specAction=command==='spec'?args.shift():null;
   if(command==='spec'&&!['check','sync'].includes(specAction))throw new WorkflowError('USAGE','Expected spec check or spec sync');
-  if (!['context','artifacts','skills','spec','check', 'validate', 'init','status','transition','doctor','recover','upgrade','rollback'].includes(command)) throw new WorkflowError('USAGE', 'Expected artifacts inspect, skills check, spec check, check, validate, init, status, transition, doctor, recover, upgrade, rollback, --help or --version');
+  if (!['guard','context','artifacts','skills','spec','check', 'validate', 'init','status','transition','doctor','recover','upgrade','rollback'].includes(command)) throw new WorkflowError('USAGE', 'Expected guard check, artifacts inspect, skills check, spec check, check, validate, init, status, transition, doctor, recover, upgrade, rollback, --help or --version');
   const options = {};
   while (args.length) {
     const key = args.shift();
     const flags = command==='context'&&contextAction==='bind'?['--preview']:command==='spec'&&specAction==='sync'?['--preview']:['upgrade','rollback'].includes(command)?['--preview']:command === 'init' ? ['--preview', '--repair', '--resume', '--undo'] : command==='transition'?['--resume','--undo']:command==='check'?['--documents']:command==='doctor'?['--client']:command==='recover'?['--repair','--resume','--undo','--refresh','--preview']:[];
-    const values = command==='context'?['--project',...(contextAction==='bind'?['--iteration','--task','--expected-snapshot','--expected-revision','--request-id','--impact','--reason']:contextAction==='guard'?['--expected-snapshot']:[])]:command==='init'?['--project','--example']:command==='artifacts'?['--project','--path','--kind']:command==='skills'?['--project','--package']:command==='spec'?['--project','--iteration','--task',...(specAction==='sync'?['--request-id','--expected-revision']:[])]:command==='upgrade'?['--project','--from-package','--expected-revision']:command==='rollback'?['--project','--operation-id','--expected-revision']:command === 'check' ? ['--package', '--project'] : command === 'validate' ? ['--state'] : command==='transition'?['--project','--input','--expected-revision']:command==='doctor'?['--project','--package','--client-evidence','--client-cli','--timeout-ms']:command==='recover'?['--project','--package','--operation-id','--expected-revision','--request-id']:['--project'];
+    const values = command==='guard'?['--project','--input']:command==='context'?['--project',...(contextAction==='bind'?['--iteration','--task','--expected-snapshot','--expected-revision','--request-id','--impact','--reason']:contextAction==='guard'?['--expected-snapshot']:[])]:command==='init'?['--project','--example']:command==='artifacts'?['--project','--path','--kind']:command==='skills'?['--project','--package']:command==='spec'?['--project','--iteration','--task',...(specAction==='sync'?['--request-id','--expected-revision']:[])]:command==='upgrade'?['--project','--from-package','--expected-revision']:command==='rollback'?['--project','--operation-id','--expected-revision']:command === 'check' ? ['--package', '--project'] : command === 'validate' ? ['--state'] : command==='transition'?['--project','--input','--expected-revision']:command==='doctor'?['--project','--package','--client-evidence','--client-cli','--timeout-ms']:command==='recover'?['--project','--package','--operation-id','--expected-revision','--request-id']:['--project'];
     if (options[key] !== undefined && !(command==='artifacts'&&key==='--path') || !flags.includes(key) && !values.includes(key)) throw new WorkflowError('USAGE', 'Invalid or duplicate option: ' + key);
     if (flags.includes(key)) options[key] = true;
     else {
@@ -57,6 +62,7 @@ function parse(args) {
       const value=args.shift();options[key]=command==='artifacts'&&key==='--path'?[...(options[key]||[]),value]:value;
     }
   }
+  if(command==='guard'&&(!options['--project']||!options['--input']))throw new WorkflowError('USAGE','guard check requires an explicit project and request file');
   if (command === 'validate' && !options['--state']) throw new WorkflowError('USAGE', 'validate requires --state <file>');
   if(command==='artifacts'&&(!options['--path']?.length||options['--kind']&&!['file','definition'].includes(options['--kind'])))throw new WorkflowError('USAGE','Artifact inspection requires paths and a supported kind');
   if(command==='doctor'&&(options['--client']&&options['--client-evidence']||!options['--client']&&(options['--client-cli']||options['--timeout-ms'])||options['--timeout-ms']&&(!/^[1-9][0-9]*$/.test(options['--timeout-ms'])||Number(options['--timeout-ms'])<1000||Number(options['--timeout-ms'])>180000)))throw new WorkflowError('USAGE','Client probe options need --client and a timeout from 1000 to 180000ms');
@@ -77,7 +83,7 @@ function parse(args) {
   if(['upgrade','rollback'].includes(command)){if(!options['--project']||! /^(?:0|[1-9][0-9]*)$/u.test(options['--expected-revision']||'')||!Number.isSafeInteger(Number(options['--expected-revision']))||command==='upgrade'&&!options['--from-package']||command==='rollback'&&!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(options['--operation-id']||''))throw new WorkflowError('USAGE','Version operation requires explicit project, exact revision and fixed source or upgrade ID');}
   if(command==='context'&&contextAction==='guard'&&!/^[a-f0-9]{64}$/u.test(options['--expected-snapshot']||''))throw new WorkflowError('USAGE','Context guard requires an exact SHA256 snapshot');
   if(command==='context'&&contextAction==='bind'&&(!/^docs\/iterations\/[^/]+$/u.test(options['--iteration']||'')||!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(options['--task']||'')||!/^[a-f0-9]{64}$/u.test(options['--expected-snapshot']||'')||!/^(?:0|[1-9][0-9]*)$/u.test(options['--expected-revision']||'')||!Number.isSafeInteger(Number(options['--expected-revision']))||!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(options['--request-id']||'')||!['unaffected','affected'].includes(options['--impact'])||!options['--reason']?.trim()))throw new WorkflowError('USAGE','Context bind requires the task, exact snapshot/revision, stable request ID, impact and reason');
-  return { command, json, specAction, contextAction, ...options };
+  return { command, json, guardAction, specAction, contextAction, ...options };
 }
 
 export async function runCli(args = process.argv.slice(2), context = {}) {
@@ -89,7 +95,25 @@ export async function runCli(args = process.argv.slice(2), context = {}) {
     const [major, minor] = process.versions.node.split('.').map(Number);
     if (major !== 24 || minor < 18) throw new WorkflowError('ENVIRONMENT', 'Node 24.18.0 or later within major 24 is required');
     let data;
-    if(options.command==='context'){
+    if(options.command==='guard'){
+      const projectRoot=assertSafeRoot(resolve(options['--project']));
+      const inputPath=resolve(options['--input']);
+      assertSafeRoot(join(inputPath,'..'));
+      const stat=lstatSync(inputPath);
+      if(!stat.isFile()||stat.isSymbolicLink()||stat.size>guardRequestBytes)throw new WorkflowError('USAGE','Guard request must be a regular JSON file no larger than 16 MiB');
+      let input;try{input=parseGuardRequest(new TextDecoder('utf-8',{fatal:true}).decode(readFileSync(inputPath)));}
+      catch(error){if(error instanceof WorkflowError&&error.code==='USAGE')throw error;throw new WorkflowError('USAGE','Guard request is not valid strict JSON');}
+      if(context.packageRoot)checkPackage(context.packageRoot);
+      if(context.projectRoot){
+        if(assertSafeRoot(context.projectRoot)!==projectRoot)throw new WorkflowError('USAGE','Installed guard requires its own project root');
+        const {checkInstalledGuard}=await import('./guard-installation.mjs');
+        checkInstalledGuard(projectRoot);
+      }
+      const {inspectOperation}=await import('./operation-guard.mjs');
+      data=await inspectOperation(projectRoot,input);
+      write(options.json?JSON.stringify({ok:data.allowed,command:'guard',version:metadata.version,data})+'\n':`${data.decision.toUpperCase()} guard: ${JSON.stringify(data)}\n`);
+      return data.decision==='allow'?0:data.decision==='deny'?exitCodes.CONFLICT:data.reasons.some(r=>['INVALID_INSTALLATION','PACKAGE_INVALID'].includes(r.code))?exitCodes.PACKAGE_INVALID:exitCodes.INCOMPLETE;
+    }else if(options.command==='context'){
       const root=options['--project']?resolve(options['--project']):context.projectRoot;if(!root)throw new WorkflowError('USAGE','Context requires an explicit project');
       const {inspectProjectContext,guardProjectContext}=await import('./foundation-context.mjs');
       if(options.contextAction==='bind'){

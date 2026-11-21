@@ -1,0 +1,285 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai-workflow:guard-result:1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "decision": {
+      "enum": [
+        "allow",
+        "deny",
+        "unknown"
+      ]
+    },
+    "allowed": {
+      "type": "boolean"
+    },
+    "request_sha256": {
+      "$ref": "urn:ai-workflow:record:2#/$defs/digest"
+    },
+    "observed": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "context_snapshot_sha256": {
+          "$ref": "urn:ai-workflow:record:2#/$defs/digest"
+        },
+        "task_definition_sha256": {
+          "$ref": "urn:ai-workflow:record:2#/$defs/digest"
+        },
+        "task_ref": {
+          "anyOf": [
+            {
+              "$ref": "urn:ai-workflow:record:2#/$defs/ref"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "framework_manifest_sha256": {
+          "$ref": "urn:ai-workflow:record:2#/$defs/digest"
+        },
+        "git": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "git_common_dir": {
+              "$ref": "urn:ai-workflow:record:2#/$defs/guard_absolute_path"
+            },
+            "worktree_root": {
+              "$ref": "urn:ai-workflow:record:2#/$defs/guard_absolute_path"
+            },
+            "branch": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "head_commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            },
+            "index_sha256": {
+              "$ref": "urn:ai-workflow:record:2#/$defs/digest"
+            },
+            "remote_url": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "base_commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          },
+          "required": []
+        }
+      },
+      "required": []
+    },
+    "read_set": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "file"
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "sha256": {
+                "anyOf": [
+                  {
+                    "$ref": "urn:ai-workflow:record:2#/$defs/digest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "path",
+              "sha256"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "git-ref"
+              },
+              "git_common_dir": {
+                "$ref": "urn:ai-workflow:record:2#/$defs/guard_absolute_path"
+              },
+              "ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "commit": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "git_common_dir",
+              "ref",
+              "commit"
+            ]
+          }
+        ]
+      },
+      "maxItems": 1000,
+      "minItems": 0
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16384
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_ref": {
+            "anyOf": [
+              {
+                "$ref": "urn:ai-workflow:record:2#/$defs/ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_action": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16384
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "path",
+          "record_ref",
+          "next_action"
+        ]
+      },
+      "maxItems": 1000,
+      "minItems": 0
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_authenticity_verified": {
+          "const": false
+        },
+        "checks_execution_verified": {
+          "const": false
+        },
+        "review_independence_verified": {
+          "const": false
+        }
+      },
+      "required": [
+        "source_authenticity_verified",
+        "checks_execution_verified",
+        "review_independence_verified"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "decision",
+    "allowed",
+    "request_sha256",
+    "observed",
+    "read_set",
+    "reasons",
+    "verification"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "allow"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "allowed": {
+            "const": true
+          },
+          "reasons": {
+            "maxItems": 0
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "allowed": {
+            "const": false
+          },
+          "reasons": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
+}

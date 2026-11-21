@@ -8,6 +8,7 @@ import schema from '../schemas/workflow-record-v1.schema.json' with {type:'json'
 import schema2 from '../schemas/workflow-record-v2.schema.json' with {type:'json'};
 import {markdownLines} from './spec-docs.mjs';
 import {taskVerificationPolicy} from './verification-policy.mjs';
+import {validateGuardDeclarations} from './guard-declarations.mjs';
 
 const ajv=new Ajv2020({allErrors:true,strict:true,strictTypes:false});
 const validator=ajv.compile(schema),artifactValidator=ajv.compile({$ref:schema.$id+'#/$defs/artifact'});
@@ -38,6 +39,7 @@ export function validateWorkflowRecord(record,path){
   if(record.kind==='task'&&!record.data.title.trim())invalid('Task title is empty');
   if(record.kind==='task')for(const ref of record.data.depends_on)if(!/^docs\/iterations\/[^/]+\/tasks\.md$/u.test(ref.path))invalid('Dependency must name a task record');
   if(record.record_version===2){
+    validateGuardDeclarations(record);
     if(record.kind==='task'){
       taskVerificationPolicy(record);
       for(const ref of record.data.delta_refs)if(ref.path!==record.iteration+'/scope.md')invalid('Task delta must belong to its iteration scope');
@@ -58,8 +60,9 @@ export function validateWorkflowRecord(record,path){
   if(position){const {phase,status,waiting_for,checkpoint_ref,confirmation_refs,blocker_refs}=position;validateStateYaml(JSON.stringify({schema_version:1,revision:0,current_iteration:record.iteration,current_task:record.task,phase,status,waiting_for,checkpoint_ref,confirmation_refs,blocker_refs,basis:[],updated_at:'2026-11-14T00:00:00Z'}));}
   return record;
 }
-export function parseWorkflowDocument(text,path){
-  if(typeof text!=='string'||Buffer.byteLength(text)>1024*1024||text.includes('\u0000')||text.includes('\ufffd'))invalid('Document must be bounded UTF-8 text');
+export function parseWorkflowDocument(text,path,{maxBytes=1024*1024}={}){
+  if(!Number.isSafeInteger(maxBytes)||maxBytes<1024*1024||maxBytes>8*1024*1024)invalid('Unsupported document byte limit');
+  if(typeof text!=='string'||Buffer.byteLength(text)>maxBytes||text.includes('\u0000')||text.includes('\ufffd'))invalid('Document must be bounded UTF-8 text');
   safe(path);
   const lines=[];let offset=0;for(const match of text.matchAll(/[^\n]*(?:\n|$)/gu)){if(!match[0].length)continue;lines.push({raw:match[0],line:match[0].replace(/\r?\n$/u,''),start:offset,end:offset+match[0].length});offset+=match[0].length;}
   const records=new Map(),spans=new Map(),identities=new Set(),body=[],visible=[],requirements=[],links=[];

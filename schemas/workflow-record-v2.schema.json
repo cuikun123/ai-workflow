@@ -357,6 +357,9 @@
               ]
             }
           }
+        },
+        "guard_policy": {
+          "$ref": "#/$defs/guard_policy"
         }
       }
     },
@@ -392,8 +395,30 @@
         },
         "supersedes": {
           "$ref": "#/$defs/refs"
+        },
+        "operation_scope": {
+          "$ref": "#/$defs/guard_operation_scope"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "operation_scope"
+            ],
+            "properties": {
+              "operation_scope": {}
+            }
+          },
+          "then": {
+            "properties": {
+              "purpose": {
+                "const": "operation_authorization"
+              }
+            }
+          }
+        }
+      ]
     },
     "check": {
       "type": "object",
@@ -487,6 +512,9 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 16384
+        },
+        "operation_context": {
+          "$ref": "#/$defs/guard_integration_context"
         }
       }
     },
@@ -949,6 +977,318 @@
           ]
         }
       }
+    },
+    "guard_absolute_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?:[A-Za-z]:[\\\\/]|/)[^\\u0000-\\u001f]*$"
+    },
+    "guard_cwd": {
+      "anyOf": [
+        {
+          "const": "."
+        },
+        {
+          "$ref": "#/$defs/path"
+        }
+      ]
+    },
+    "guard_path_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "recursive": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path",
+        "recursive"
+      ]
+    },
+    "guard_workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "worktree_root": {
+          "$ref": "#/$defs/guard_absolute_path"
+        },
+        "git_common_dir": {
+          "$ref": "#/$defs/guard_absolute_path"
+        },
+        "task_branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "main_branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      },
+      "required": [
+        "worktree_root",
+        "git_common_dir",
+        "task_branch",
+        "main_branch"
+      ]
+    },
+    "guard_command": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "executable": {
+          "$ref": "#/$defs/guard_absolute_path"
+        },
+        "executable_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "maxItems": 1000,
+          "minItems": 0
+        },
+        "cwd": {
+          "$ref": "#/$defs/guard_cwd"
+        }
+      },
+      "required": [
+        "executable",
+        "executable_sha256",
+        "argv",
+        "cwd"
+      ]
+    },
+    "guard_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workspace": {
+          "$ref": "#/$defs/guard_workspace"
+        },
+        "write_paths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/guard_path_scope"
+          },
+          "maxItems": 1000,
+          "minItems": 0
+        },
+        "closeout_paths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/guard_path_scope"
+          },
+          "maxItems": 1000,
+          "minItems": 0
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/guard_command"
+          },
+          "maxItems": 1000,
+          "minItems": 0
+        }
+      },
+      "required": [
+        "workspace",
+        "write_paths",
+        "closeout_paths",
+        "commands"
+      ]
+    },
+    "guard_git_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "git_common_dir": {
+          "$ref": "#/$defs/guard_absolute_path"
+        },
+        "worktree_root": {
+          "$ref": "#/$defs/guard_absolute_path"
+        },
+        "source_branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "remote_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "remote_url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "target_branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      },
+      "required": [
+        "git_common_dir",
+        "worktree_root",
+        "source_branch",
+        "remote_name",
+        "remote_url",
+        "target_branch"
+      ]
+    },
+    "guard_operation_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "file.mutate",
+              "command.run",
+              "workflow.apply",
+              "git.stage",
+              "git.commit",
+              "git.push",
+              "git.integrate",
+              "task.repair"
+            ]
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "binding": {
+          "enum": [
+            "task",
+            "candidate"
+          ]
+        },
+        "git": {
+          "$ref": "#/$defs/guard_git_scope"
+        },
+        "candidate_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        }
+      },
+      "required": [
+        "actions",
+        "binding"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "binding": {
+                "const": "candidate"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "candidate_commit"
+            ],
+            "properties": {
+              "candidate_commit": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{40}$"
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "candidate_commit"
+              ],
+              "properties": {
+                "candidate_commit": {}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "actions": {
+                "contains": {
+                  "enum": [
+                    "git.stage",
+                    "git.commit",
+                    "git.push",
+                    "git.integrate"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "git"
+            ],
+            "properties": {
+              "git": {
+                "$ref": "#/$defs/guard_git_scope"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "guard_integration_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "git.integration"
+        },
+        "git_common_dir": {
+          "$ref": "#/$defs/guard_absolute_path"
+        },
+        "remote_url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "target_branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "base_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "candidate_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "pr": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "kind",
+        "git_common_dir",
+        "remote_url",
+        "target_branch",
+        "base_commit",
+        "candidate_commit",
+        "pr"
+      ]
     }
   },
   "allOf": [

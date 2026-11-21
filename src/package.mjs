@@ -9,6 +9,8 @@ import metadata from '../package.json' with { type: 'json' };
 import stateSchema from '../schemas/state-v1.schema.json' with { type: 'json' };
 import recordSchema from '../schemas/workflow-record-v1.schema.json' with { type: 'json' };
 import recordSchema2 from '../schemas/workflow-record-v2.schema.json' with {type:'json'};
+import guardRequestSchema from '../schemas/guard-request.schema.json' with {type:'json'};
+import guardResultSchema from '../schemas/guard-result.schema.json' with {type:'json'};
 import navigation from '../templates/navigation.json' with { type: 'json' };
 import {skillNames} from './skill-names.mjs';
 import {inspectSkillResources,skillPolicy,providerResources,skillPackagePaths} from './skill-resources.mjs';
@@ -18,8 +20,13 @@ export {skillNames} from './skill-names.mjs';
 const fail = message => { throw new WorkflowError('PACKAGE_INVALID', message); };
 const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
+const guardSchemas = new Map([
+  ['resources/schemas/guard-request.schema.json', guardRequestSchema],
+  ['resources/schemas/guard-result.schema.json', guardResultSchema],
+]);
+export const guardPackagePaths = Object.freeze(['runtime/guard.mjs', ...guardSchemas.keys()]);
 export function userPackageResources(skillManifest=skillPolicy){
-  return new Set(['resource-manifest.json','package.json','bin/iterlane.mjs','runtime/cli.mjs','dependency-manifest.json',
+  return new Set(['resource-manifest.json','package.json','bin/iterlane.mjs','runtime/cli.mjs',...guardPackagePaths,'dependency-manifest.json',
     'README.md','LICENSE','THIRD_PARTY_NOTICES.md',...userGuidePaths,...skillPackagePaths(skillManifest),
     'resources/sources/catalog.yaml','resources/sources/openspec-NOTICE.md',
     'resources/schemas/state-v1.schema.json','resources/schemas/workflow-record-v1.schema.json','resources/schemas/workflow-record-v2.schema.json',
@@ -28,7 +35,7 @@ export function userPackageResources(skillManifest=skillPolicy){
     ...exampleFiles.map(path=>'resources/examples/bookmarks/'+path)]);
 }
 
-export function checkPackage(root,{skillManifest=skillPolicy,sharedDigests}={}) {
+export function checkPackage(root,{skillManifest=skillPolicy,sharedDigests,previousBuild=false}={}) {
   const manifestFile = resolveRegularFile(root, 'resource-manifest.json');
   let manifest; try {
     const bytes = readFileSync(manifestFile); if (bytes.length > 4 * 1024 * 1024) fail('Resource manifest is too large');
@@ -55,6 +62,8 @@ export function checkPackage(root,{skillManifest=skillPolicy,sharedDigests}={}) 
   const mandatory = ['package.json', 'bin/iterlane.mjs', 'runtime/cli.mjs', 'resources/schemas/state-v1.schema.json', 'resources/sources/catalog.yaml', 'resources/sources/README.md', 'resources/templates/manifest.json', 'resources/templates/navigation.json', 'dependency-manifest.json', 'THIRD_PARTY_NOTICES.md', 'README.md'];
   mandatory.push('resources/schemas/workflow-record-v1.schema.json');
   mandatory.push('resources/schemas/workflow-record-v2.schema.json','resources/sources/openspec-NOTICE.md');
+  // Previous build output need not contain resources added by this build.
+  if(!previousBuild)mandatory.push(...guardPackagePaths);
   mandatory.push('resources/skills/_shared/manifest.json','resources/skills/_shared/resource-index.json');
   mandatory.push(...userGuidePaths);
   mandatory.push(...skillPackagePaths(skillManifest));
@@ -68,6 +77,10 @@ export function checkPackage(root,{skillManifest=skillPolicy,sharedDigests}={}) 
   if (!isDeepStrictEqual(distributedRecords,recordSchema)) fail('Packaged record schema differs from runtime schema');
   let distributedRecords2;try{distributedRecords2=JSON.parse(readFileSync(join(root,'resources/schemas/workflow-record-v2.schema.json'),'utf8'));}catch{fail('Invalid v2 record schema');}
   if(!isDeepStrictEqual(distributedRecords2,recordSchema2))fail('Packaged v2 record schema differs from runtime schema');
+  for(const [file,schema] of guardSchemas)if(expected.includes(file)) {
+    let packaged;try{packaged=JSON.parse(readFileSync(join(root,file),'utf8'));}catch{fail('Invalid packaged guard schema: '+file);}
+    if(!isDeepStrictEqual(packaged,schema))fail('Packaged guard schema differs from runtime schema: '+file);
+  }
   let distributedNavigation; try { distributedNavigation = JSON.parse(readFileSync(join(root, 'resources/templates/navigation.json'), 'utf8')); } catch { fail('Invalid packaged navigation template'); }
   if (!isDeepStrictEqual(distributedNavigation, navigation)) fail('Packaged navigation differs from runtime template');
   let distributedLayout; try { distributedLayout = JSON.parse(readFileSync(join(root, 'resources/templates/manifest.json'), 'utf8')); } catch { fail('Invalid packaged template layout'); }
