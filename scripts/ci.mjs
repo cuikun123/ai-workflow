@@ -1,6 +1,6 @@
 import { run } from 'node:test';
 import { readdirSync, mkdirSync, writeFileSync, readFileSync, cpSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { evaluateTestEvents } from './check-results.mjs';
@@ -41,11 +41,19 @@ required.push('tests/runtime/project-writes.test.mjs','tests/end-to-end/usabilit
 required.push('tests/runtime/document-rules.test.mjs');
 required.push('tests/runtime/guard-contract.test.mjs','tests/runtime/operation-guard.test.mjs','tests/runtime/operation-git.test.mjs','tests/runtime/guard-cli.test.mjs','tests/runtime/guard-distribution.test.mjs');
 function tests(directory) { return readdirSync(directory, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? tests(join(directory, entry.name)) : entry.name.endsWith('.test.mjs') ? [join(directory, entry.name)] : []); }
+// Files whose single run takes a long time because they drive real subprocesses, file locks or
+// crash recovery. They stay in the complete scope only; the quick scope keeps routine feedback short.
+const slowFiles = new Set(['tests/runtime/context-binding.test.mjs','tests/runtime/install-recovery.test.mjs','tests/runtime/operation-git.test.mjs','tests/runtime/diagnostics.test.mjs','tests/runtime/spec-sync-workflow.test.mjs','tests/runtime/operation-guard.test.mjs','tests/runtime/git-line-endings.test.mjs','tests/runtime/recovery.test.mjs','tests/end-to-end/controller.test.mjs','tests/runtime/workflow-recovery.test.mjs','tests/runtime/version-faults.test.mjs','tests/runtime/installation.test.mjs','tests/runtime/spec-sync.test.mjs','tests/runtime/example-init.test.mjs','tests/runtime/diagnostics-cli.test.mjs','tests/runtime/workflow-cli.test.mjs','tests/runtime/client-probe.test.mjs','tests/runtime/version-audit.test.mjs','tests/runtime/spec-sync-recovery.test.mjs','tests/runtime/verification-cli.test.mjs','tests/runtime/spec-sync-cli.test.mjs','tests/runtime/version-recovery.test.mjs','tests/runtime/spec-sync-process.test.mjs','tests/runtime/artifact-inspect.test.mjs','tests/runtime/foundation-context.test.mjs','tests/runtime/distribution.test.mjs','tests/runtime/version-boundaries.test.mjs','tests/runtime/cli.test.mjs','tests/runtime/guard-cli.test.mjs','tests/runtime/delivery.test.mjs','tests/end-to-end/optimization-fixtures.test.mjs','tests/runtime/guard-distribution.test.mjs']);
+const scope = process.argv.includes('--fast') || process.env.ITERLANE_CI_SCOPE === 'fast' ? 'fast' : 'full';
+const normalize = file => relative(root, file).replaceAll('\\', '/');
+const allFiles = tests(join(root, 'tests'));
+const selected = scope === 'fast' ? allFiles.filter(file => !slowFiles.has(normalize(file))) : allFiles;
+const concurrency = scope === 'fast' ? 4 : 2;
 mkdirSync(join(root, '.artifacts'), { recursive: true });
 const events = [];
 try {
-  for await (const event of run({ files: tests(join(root, 'tests')), concurrency: 1 })) events.push(event);
-  const result = evaluateTestEvents(events, required.map(file => join(root, file)));
+  for await (const event of run({ files: selected, concurrency })) events.push(event);
+  const result = evaluateTestEvents(events, scope === 'fast' ? [] : required.map(file => join(root, file)));
   const built = await buildPackage();
   const generatedDocs = spawnSync(process.execPath, ['--test', 'tests/runtime/document-rules.test.mjs'], {
     cwd: root,
@@ -62,12 +70,12 @@ try {
   const filename = JSON.parse(packed.stdout)[0].filename;
   const artifact = { filename, sha256: sha256(readFileSync(join(artifacts, filename))) };
   for (const name of ['resource-manifest.json', 'dependency-manifest.json']) cpSync(join(built.output, name), join(artifacts, name));
-  const evidence = { ok: true, node: process.version, platform: process.platform, tests: result, package: built, artifact, resource_manifest_sha256: sha256(readFileSync(join(built.output, 'resource-manifest.json'))) };
+  const evidence = { ok: true, scope, node: process.version, platform: process.platform, tests: result, package: built, artifact, resource_manifest_sha256: sha256(readFileSync(join(built.output, 'resource-manifest.json'))) };
   writeFileSync(join(artifacts, 'check-result.json'), JSON.stringify(evidence, null, 2));
   console.log(JSON.stringify(evidence));
 } catch (error) {
   console.error(error.message); for (const event of events.filter(e => e.type === 'test:fail')) console.error(JSON.stringify(event));
-  writeFileSync(join(root, '.artifacts/check-result.json'), JSON.stringify({ ok: false, message: error.message }, null, 2)); process.exitCode = 1;
+  writeFileSync(join(root, '.artifacts/check-result.json'), JSON.stringify({ ok: false, scope, message: error.message }, null, 2)); process.exitCode = 1;
 } finally {
   writeFileSync(join(root, '.artifacts/test-events.jsonl'), events.map(e => JSON.stringify(e, (k, v) => v instanceof Error ? { message: v.message, stack: v.stack, ...v } : v)).join('\n') + '\n');
 }

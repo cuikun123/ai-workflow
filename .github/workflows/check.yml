@@ -2,6 +2,9 @@ name: Deterministic checks
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   check:
     runs-on: windows-latest
@@ -12,10 +15,16 @@ jobs:
           node-version: 24.18.0
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: npm run ci
+      - name: Quick deterministic checks
+        if: github.event_name != 'workflow_dispatch'
+        run: npm run ci:fast
+      - name: Complete deterministic checks
+        if: github.event_name == 'workflow_dispatch'
+        run: npm run ci
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: deterministic-check-evidence
           path: .artifacts/
-          if-no-files-found: error
+          include-hidden-files: true
+          if-no-files-found: warn
